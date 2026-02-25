@@ -8,6 +8,8 @@ from hello_helpers.hello_misc import HelloNode
 import moveit2_utils
 
 # Make sure to run `ros2 launch stretch_core stretch_driver.launch.py`
+# NOTE launch rviz: `ros2 launch stretch_moveit2 movegroup_moveit2_stretch3.launch.py`
+
 
 class MoveMe(HelloNode):
     def __init__(self):
@@ -17,8 +19,32 @@ class MoveMe(HelloNode):
 
         planning_group = 'mobile_base_arm'
         moveit, moveit_plan, planning_params = moveit2_utils.setup_moveit(planning_group)
+
+        motions = np.array([
+            # 0 to 1: Move base, lift to 0.5m, keep arm/wrist as is
+            [0.2, 0.2, 0.0, 0.5, 
+            self.get_joint_pos('joint_arm_l3'), self.get_joint_pos('joint_arm_l2'), 
+            self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+            self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')],
+            
+            # 1 to 2: Move base, rotate -90 deg, extend arm slightly (0.1m per link = 0.4m total)
+            [0, -0.5, -np.radians(90), self.get_joint_pos('joint_lift'), 
+            0.1, 0.1, 0.1, 0.1, 
+            self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')],
+
+            # 2 to 3: Adjust base, keep arm extended, rotate wrist joints to 45 degrees
+            [-0.2, -0.4, -np.radians(90), self.get_joint_pos('joint_lift'), 
+            0.1, 0.1, 0.1, 0.1, 
+            np.radians(45), np.radians(45), np.radians(45)],
+            
+            # 3 to 4: Move base, rotate to -180 deg, retract arm and lower lift
+            [-0.2, -0.2, -np.radians(180), 
+            0.2,   # 0.2 Stow Lift Height
+            0.03, 0.03, 0.03, 0.03, # Retract Arm
+            0.0, 0.0, 0.0] # Reset wrist
+        ])
         
-        for i in range(1):
+        for i in range(len(motions)):
             print(f'--- Planning Step {i} ---')
             goal_state = RobotState(moveit.get_robot_model())
 
@@ -27,18 +53,23 @@ class MoveMe(HelloNode):
             # Ordering: [x, y, theta, lift, arm/4, arm/4, arm/4, arm/4, yaw, pitch, roll]
             # For driving the base: the positive x-axis is pointing out of the front of the robot (the flat side of the base). 
             # Positive y-axis is on the left of the robot (opposite direction the arm is facing).
-            goal_state.set_joint_group_positions(planning_group, 
-                [0.3, 0.0, 0.0, 
-                self.get_joint_pos('joint_lift'), self.get_joint_pos('joint_arm_l3'), 
-                self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
-                self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
-            )
+            
+            
+            goal_state.set_joint_group_positions(planning_group, motions[i])
+
+            # goal_state.set_joint_group_positions(planning_group, 
+            #     [0.3, 0.0, 0.0, 
+            #     self.get_joint_pos('joint_lift'), self.get_joint_pos('joint_arm_l3'), 
+            #     self.get_joint_pos('joint_arm_l2'), self.get_joint_pos('joint_arm_l1'), self.get_joint_pos('joint_arm_l0'), 
+            #     self.get_joint_pos('joint_wrist_yaw'), self.get_joint_pos('joint_wrist_pitch'), self.get_joint_pos('joint_wrist_roll')]
+            # )
+
             # NOTE: You should delete the above example and replace it with your own goal states.
             
             # TODO: Your code will likely go here. Note that I gave you a for loop already, which you can edit and use.
             # For base motion (x, y, theta) each goal state should be defined according to the robot's current position (or its previous goal).
             # Reminder: You can use the RViz GUI for MoveIt 2 to get a better intuition for what these goal positions should be.
-
+            
             moveit_plan.set_start_state_to_current_state()
             moveit_plan.set_goal_state(robot_state=goal_state)
             
@@ -86,3 +117,5 @@ class MoveMe(HelloNode):
 
 if __name__ == '__main__':
     MoveMe()
+
+
