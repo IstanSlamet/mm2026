@@ -10,7 +10,7 @@ We'll be leveraging [YOLO-E](https://docs.ultralytics.com/models/yoloe/) as part
 ### Dependencies for using YOLO-E
 ```
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-pip3 install -U ultralytics
+pip3 install ultralytics
 ```
 Of the available versions of YOLO-E, we will be using `yolo-e-v26-small` for its great performance and inference latency on limited compute, perfect for edge applications (e.g., running directly on the Stretch CPU). The pretrained weights should already be downloaded on Stretch for you and saved to: `/home/hello-robot/models/yoloe-26s-seg.pt`. Should you need to download them again for some reason, they can be found [here](https://github.com/ultralytics/assets/releases/download/v8.4.0/yoloe-26s-seg.pt).
 
