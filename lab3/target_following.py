@@ -43,8 +43,15 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the goal pose to the base frame
+        try:
+            goal_transformed = self.tf_buffer.lookup_transform(
+                self.target_frame,              # Target Frame (where we want to move)
+                "camera_color_optical_frame",   # Source Frame (where the sensor is)
+                rclpy.time.Time()               # Get the latest data
+            )
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f"Goal Pose TF Error: {e}")
 
-        goal_transformed = None
         # TODO: -------------- end ---------------
 
         return goal_transformed
@@ -53,8 +60,14 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the gripper pose to the base frame
-
-        gripper_transformed = None
+        try:
+            gripper_transformed = self.tf_buffer.lookup_transform(
+                self.target_frame,
+                self.gripper_frame,
+                rclpy.time.Time()
+            )        
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f"Gripper TF Error: {e}")
         # TODO: -------------- end ---------------
 
         return gripper_transformed
@@ -132,9 +145,23 @@ class IKTargetFollowing(HelloNode):
 
 
         # TODO: ------------- start --------------
-        # fill with your response
-        #   create a tf2 buffer and listener
-        #   create a subscriber to the goal pose published by your object detector
+        # 1. create a tf2 buffer and listener
+        ## Create the buffer(the storage unit)
+        self.tf_buffer = tf2_ros.Buffer()
+        ## Create the listener (the data collector)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        ## A TF buffer in ROS is a data storage container that records coordinate frame transforms over time, allowing nodes
+        ## to look up relationships between frames at specific timestamps
+
+        # 2. create a subscriber to the goal pose published by your object detector
+        self.goal_pose_subscriber = self.create_subscription(
+            PoseStamped,                                # Message Type
+            'object_detector/goal_pose',                # Topic Name
+            callback=self.get_goal_pose_in_base_frame,  # Function to trigger
+            qos_profile=10                              # Queue Size
+            )
+
         # TODO: -------------- end ---------------
 
 
