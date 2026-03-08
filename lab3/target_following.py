@@ -19,12 +19,18 @@ class IKTargetFollowing(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
 
-        self.delta = 0.03 # cm
+        self.delta = 0.1 # cm
         self.target_frame = 'base_link'
         self.gripper_frame = 'link_grasp_center'
+        #------------------
+        self.ik_chain = ik.chain
+        #------------------
         self.tf_buffer = None
         self.tf_listener = None
         self.joint_states_lock = threading.Lock()
+        
+        # Temporary
+        self.last_command_time = None
     
     def joint_states_callback(self, msg):
         # unpacks joint state messages for what works with/is expected by ikpy
@@ -43,18 +49,30 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the goal pose to the base frame
+        
         try:
-            goal_transformed = self.tf_buffer.lookup_transform(
+        # 1. Get the transform from the base to the camera
+            transform = self.tf_buffer.lookup_transform(
                 self.target_frame,              # Target Frame (where we want to move)
                 "camera_color_optical_frame",   # Source Frame (where the sensor is)
                 rclpy.time.Time()               # Get the latest data
             )
+            
+            # 2. Apply the transform to the actual coordinates of the object
+            import tf2_geometry_msgs
+            pose_transformed = tf2_geometry_msgs.do_transform_pose(goal_msg.pose, transform)
+            
+            # 3. Package it back into a PoseStamped message for the IK helper
+            goal_transformed = PoseStamped()
+            goal_transformed.header.frame_id = self.target_frame
+            goal_transformed.pose = pose_transformed
+            return goal_transformed
+            
         except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().error(f"Goal Pose TF Error: {e}")
+            return None
 
         # TODO: -------------- end ---------------
-
-        return goal_transformed
 
     def get_gripper_pose_in_base_frame(self):
         # TODO: ------------- start --------------
@@ -75,6 +93,8 @@ class IKTargetFollowing(HelloNode):
     def goal_callback(self, goal_msg):
         # print(msg)
         # self.get_logger().info(f'Received goal pose: {msg.pose}')
+        #test_pose = {'joint_lift': 0.6}
+        #self.move_to_pose(test_pose, blocking=False)
         try:
             goal_transformed = self.get_goal_pose_in_base_frame(goal_msg)
             gripper_transformed = self.get_gripper_pose_in_base_frame()
@@ -91,7 +111,17 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
         #   to move the robot to the transformed goal point.
-        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, ik.READY_POSE_P1)
+        with self.joint_states_lock:
+        	q_init = ik.get_current_configuration(self.joint_state)
+        for i, link in enumerate(self.ik_chain.links):
+        	if link.joint_type != "fixed":
+        		val = q_init[i]
+        		low, high = link.bounds
+        		if val < low or val > high:
+        			print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
+        			print(f"Value: {val}, Limits: [{low}, {high}]")
+        
+        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -105,7 +135,10 @@ class IKTargetFollowing(HelloNode):
 
         ik.print_q(q_soln)
         if q_soln is not None:
-            ik.move_to_configuration(self, q_soln)
+        	current_time = self.get_clock().now()
+        	if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
+        		ik.move_to_configuration(self, q_soln)
+        		self.last_command_time = current_time
 
     def compute_waypoint_to_goal(self, goal_pos, gripper_pos):
 
@@ -135,7 +168,9 @@ class IKTargetFollowing(HelloNode):
     def move_to_ready_pose(self):
         # TODO: minor - uncomment the correct ready pose for part 1 or 2!
         #   part 1: 
+        self.switch_to_position_mode()
         self.move_to_pose(ik.READY_POSE_P1, blocking=True)
+        self.switch_to_position_mode()
         #   part 2: READY_POSE_P2
         # self.move_to_pose(ik.READY_POSE_P2, blocking=True)
 
@@ -164,7 +199,7 @@ class IKTargetFollowing(HelloNode):
         self.goal_pose_subscriber = self.create_subscription(
             PoseStamped,                                # Message Type
             'object_detector/goal_pose',                # Topic Name
-            callback=self.get_goal_pose_in_base_frame,  # Function to trigger
+            callback=self.goal_callback,  		# Function to trigger
             qos_profile=10                              # Queue Size
             )
 

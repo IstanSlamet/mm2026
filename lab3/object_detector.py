@@ -152,7 +152,7 @@ class YOLOEObjectDetector(Node):
         y_idx = min(max(int(y_pix), 0), h-1)
         x_idx = min(max(int(x_pix), 0), w-1)
 
-        z_depth = self.latest_depth[y_pix,x_pix]
+        z_depth = self.latest_depth[y_idx,x_idx]
         centroid_3d_pose = detection_utils.pixel_to_3d(xy_pix, z_depth, self.latest_color_cam_info)
         
         #   convert that pose to a PoseStamped msg using detection_utils.get_pose_msg()
