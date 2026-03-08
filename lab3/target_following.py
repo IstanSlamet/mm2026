@@ -43,8 +43,15 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the goal pose to the base frame
+        try:
+            goal_transformed = self.tf_buffer.lookup_transform(
+                self.target_frame,              # Target Frame (where we want to move)
+                "camera_color_optical_frame",   # Source Frame (where the sensor is)
+                rclpy.time.Time()               # Get the latest data
+            )
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f"Goal Pose TF Error: {e}")
 
-        goal_transformed = None
         # TODO: -------------- end ---------------
 
         return goal_transformed
@@ -53,8 +60,14 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the gripper pose to the base frame
-
-        gripper_transformed = None
+        try:
+            gripper_transformed = self.tf_buffer.lookup_transform(
+                self.target_frame,
+                self.gripper_frame,
+                rclpy.time.Time()
+            )        
+        except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
+            self.get_logger().error(f"Gripper TF Error: {e}")
         # TODO: -------------- end ---------------
 
         return gripper_transformed
@@ -142,6 +155,14 @@ class IKTargetFollowing(HelloNode):
         HelloNode.main(self, 'follow_target', 'follow_target', wait_for_first_pointcloud=False)
         self.logger = self.get_logger()
         self.callback_group = ReentrantCallbackGroup()
+        # TODO: ------------- start --------------
+        # fill with your response
+        #   create a tf2 buffer and listener
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        # TODO: -------------- end ---------------
+        
+        
         self.joint_states_subscriber = self.create_subscription(JointState, '/stretch/joint_states', callback=self.joint_states_callback, qos_profile=1)
 
         self.stow_the_robot()
@@ -149,12 +170,8 @@ class IKTargetFollowing(HelloNode):
         print("At Ready Pose")
 
 
-        # TODO: ------------- start --------------
-        # fill with your response
-        #   create a tf2 buffer and listener
-        # TODO: -------------- end ---------------
-        self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+
         self.goal_sub = self.create_subscription(PoseStamped, '/object_detector/goal_pose', self.goal_callback, 10)
 
 
