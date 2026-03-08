@@ -19,7 +19,7 @@ class IKTargetFollowing(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
 
-        self.delta = 0.03 # cm
+        self.delta = 0.03 # 3 cm
         self.target_frame = 'base_link'
         self.gripper_frame = 'link_grasp_center'
         self.tf_buffer = None
@@ -78,7 +78,18 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
         #   to move the robot to the transformed goal point.
-        q_soln = None
+        q_init = ik.get_current_configuration(self.joint_state)
+
+        for i in range(6, 10):
+            q_init[i] = 0.025
+
+        q_soln = ik.chain.inverse_kinematics(
+            waypoint_pos,
+            waypoint_orient,
+            orientation_mode='all',
+            initial_position=q_init
+            )
+
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -104,7 +115,14 @@ class IKTargetFollowing(HelloNode):
         #   in this case, find a waypoint toward the goal position that is delta away from the gripper position (make some progress towards the goal)
         #   otherwise, the goal is close and we can move there directly
 
-        waypoint_pos = None
+        delta_vec = (goal_pos - gripper_pos)
+        delta_norm = np.linalg.norm(delta_vec)
+        delta_dir = delta_vec / delta_norm
+        
+        if delta_norm <= self.delta:
+            waypoint_pos = goal_pos
+        else:
+            waypoint_pos = delta_dir * self.delta + gripper_pos
         # TODO: -------------- end ---------------
 
         # use an zero rotation for the waypoint (its a point so we don't need to worry about orientation)
@@ -134,9 +152,10 @@ class IKTargetFollowing(HelloNode):
         # TODO: ------------- start --------------
         # fill with your response
         #   create a tf2 buffer and listener
-        #   create a subscriber to the goal pose published by your object detector
         # TODO: -------------- end ---------------
-
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        self.goal_sub = self.create_subscription(PoseStamped, '/object_detector/goal_pose', self.goal_callback, 10)
 
 
 

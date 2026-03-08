@@ -58,6 +58,20 @@ def get_modified_urdf():
     # TODO: ------------- start --------------
     # fill with your response
     #   your implementation from lab 2 - add a virtual base rotation joint to the urdf
+    joint_base_rotation = urdfpy.Joint(name='joint_base_rotation',
+                                        parent='base_link',
+                                        child='link_base_rotation',
+                                        joint_type='revolute',
+                                        axis=np.array([0.0, 0.0, 1.0]),
+                                        origin=np.eye(4, dtype=np.float64),
+                                        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-1.0, upper=1.0))
+    modified_urdf._joints.append(joint_base_rotation)
+    link_base_rotation = urdfpy.Link(name='link_base_rotation',
+                                        inertial=None,
+                                        visuals=None,
+                                        collisions=None)
+    modified_urdf._links.append(link_base_rotation)
+
     # TODO: -------------- end ---------------
 
     joint_base_translation = urdfpy.Joint(name='joint_base_translation',
@@ -93,8 +107,35 @@ def get_current_configuration(joint_state):
     # fill with your response
     #   your implementation from lab 2 - get the current configuration from the joint state
     #   note: this time you can use the joint state callback provided for you in target_following.py which provides joint states as a
-    #   dictionary that can be indexed by joint name, e.g. joint_state['joint_lift']
-    q = None
+    #   dictionary that can be indexed by joint name, e.g. joint_state['joint_lift']q_lift = joint_state['joint_lift']
+    
+    q_lift = joint_state['joint_lift']
+    q_arm = joint_state['joint_arm'] # Total arm extension
+    q_yaw = joint_state['joint_wrist_yaw']
+    q_pitch = joint_state['joint_wrist_pitch']
+    q_roll = joint_state['joint_wrist_roll']
+    
+    # To get the 4-segment arm, dividing total extension by 4.0
+    q_arml = q_arm / 4.0
+
+    q = [
+        0.0,       # 0. base_link (Fixed)
+        0.0,       # 1. joint_base_rotation (Revolute)
+        0.0,       # 2. joint_base_translation (Prismatic)
+        0.0,       # 3. joint_mast (Fixed)
+        q_lift,    # 4. joint_lift (Prismatic)
+        0.0,       # 5. joint_arm_l4 (Fixed)
+        q_arml,    # 6. joint_arm_l3 (Prismatic)
+        q_arml,    # 7. joint_arm_l2 (Prismatic)
+        q_arml,    # 8. joint_arm_l1 (Prismatic)
+        q_arml,    # 9. joint_arm_l0 (Prismatic)
+        q_yaw,     # 10. joint_wrist_yaw (Revolute)
+        0.0,       # 11. joint_wrist_yaw_bottom (Fixed)
+        q_pitch,   # 12. joint_wrist_pitch (Revolute)
+        q_roll,    # 13. joint_wrist_roll (Revolute)
+        0.0,       # 14. joint_gripper_s3_body (Fixed)
+        0.0        # 15. joint_grasp_center (Fixed)
+        ]
 
     return q
     # TODO: -------------- end ---------------
@@ -121,7 +162,17 @@ def move_to_configuration(node, q):
     # TODO: ------------- start --------------
     # fill with your response
     #   your implementation from lab 2 - unpack the q solution to appropriate ros2 joints and command the robot joints to move accordingly
-    
+    q_base_rot = q[1]
+    q_base = q[2]
+    q_lift = q[4]
+    q_arm = q[6] + q[7] + q[8] + q[9]
+    q_yaw = q[10]
+    q_pitch = q[12]
+    q_roll = q[13]
+    node.move_to_pose({'rotate_mobile_base': q_base_rot}, blocking=True)
+    node.move_to_pose({'joint_lift':q_lift, 'joint_arm':q_arm}, blocking=True)
+    node.move_to_pose({'joint_wrist_yaw':q_yaw, 'joint_wrist_roll':q_roll, 'joint_wrist_pitch':q_pitch}, blocking=True)
+    node.move_to_pose({'translate_mobile_base':q_base}, blocking=True)
     # TODO: -------------- end ---------------
 
 def print_q(q):
