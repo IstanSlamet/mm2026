@@ -56,9 +56,10 @@ class IKTargetFollowing(HelloNode):
         try:
         # 1. Get the transform from the base to the camera
             transform = self.tf_buffer.lookup_transform(
-                self.target_frame,              # Target Frame (where we want to move)
-                "camera_color_optical_frame",   # Source Frame (where the sensor is)
-                rclpy.time.Time()               # Get the latest data
+                self.target_frame,
+                goal_msg.header.frame_id,
+                goal_msg.header.stamp,                          # Source Frame (where the sensor is)
+                timeout=rclpy.duration.Duration(seconds=0.1)    # Get the latest data
             )
             
             # 2. Apply the transform to the actual coordinates of the object
@@ -82,11 +83,19 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the gripper pose to the base frame
         try:
-            gripper_transformed = self.tf_buffer.lookup_transform(
+            t = gripper_transformed = self.tf_buffer.lookup_transform(
                 self.target_frame,
                 self.gripper_frame,
                 rclpy.time.Time()
-            )        
+            )
+            # Convert TransformStamped to PoseStamped
+            p = PoseStamped()
+            p.header = t.header
+            p.pose.position.x = t.transform.translation.x
+            p.pose.position.y = t.transform.translation.y
+            p.pose.position.z = t.transform.translation.z
+            p.pose.orientation = t.transform.rotation
+            return p # PoseStamped          
         except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().error(f"Gripper TF Error: {e}")
         # TODO: -------------- end ---------------
@@ -121,19 +130,20 @@ class IKTargetFollowing(HelloNode):
         if distance < 0.25:
             self.is_grasping = True
             self.execute_grasp(goal_pos)
-        else:
-            waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
-            with self.joint_states_lock:
-                q_init = ik.get_current_configuration(self.joint_state)
-            for i, link in enumerate(self.ik_chain.links):
-                if link.joint_type != "fixed":
-                    val = q_init[i]
-                    low, high = link.bounds
-                    if val < low or val > high:
-                        print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
-                        print(f"Value: {val}, Limits: [{low}, {high}]")
+            return
         
-            q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
+        waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
+        with self.joint_states_lock:
+            q_init = ik.get_current_configuration(self.joint_state)
+        for i, link in enumerate(self.ik_chain.links):
+            if link.joint_type != "fixed":
+                val = q_init[i]
+                low, high = link.bounds
+                if val < low or val > high:
+                    print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
+                    print(f"Value: {val}, Limits: [{low}, {high}]")
+    
+        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -148,13 +158,15 @@ class IKTargetFollowing(HelloNode):
         ik.print_q(q_soln)
         if q_soln is not None:
         	current_time = self.get_clock().now()
+            
             if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
         		ik.move_to_configuration(self, q_soln)
                 self.last_command_time = current_time
         
+
     def execute_grasp(self, goal_pos):
           
-        # Function to move arm to object position and grasp the object 
+        # TODO: New function to move arm to object position and grasp the object 
         
         # Open gripper
         self.move_to_pose({'gripper_finger_joint': 0.2}, blocking=True)
@@ -182,7 +194,7 @@ class IKTargetFollowing(HelloNode):
             # Retract arm (bring it home!)
             self.move_to_pose({'joint_arm_l0': 0.0}, blocking=True)
         else:
-             self.is_grasping = False
+            self.is_grasping = False
 
 
     def compute_waypoint_to_goal(self, goal_pos, gripper_pos):
