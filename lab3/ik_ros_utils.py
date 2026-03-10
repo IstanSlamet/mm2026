@@ -201,7 +201,7 @@ def move_to_configuration(node, q):
     # Add only one base command to the dictionary
     # If the robot needs to turn more than a tiny bit, only rotate
     # otherwise, drive forward/backward
-    if abs(delta_base_rot) > 0.1:
+    if abs(delta_base_rot) > 0.6:
     	GOAL_POSE['rotate_mobile_base'] = delta_base_rot
     else:
         GOAL_POSE['translate_mobile_base'] = delta_base_trans

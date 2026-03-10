@@ -19,7 +19,7 @@ class IKTargetFollowing(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
 
-        self.delta = 0.1 # cm
+        self.delta = 0.02 # cm
         self.target_frame = 'base_link'
         self.gripper_frame = 'link_grasp_center'
         #------------------
@@ -169,11 +169,18 @@ class IKTargetFollowing(HelloNode):
         goal_xyz = goal_pos[:3]
         gripper_xyz = gripper_pos[:3]
         distance = np.linalg.norm(goal_xyz - gripper_xyz)
-        if distance > self.delta:
+        
+        # Distance we want to maintain
+        standoff_distance = 0.025
+        error_distance = distance - standoff_distance
+        if error_distance > self.delta:
             goal_unit_vector = (goal_xyz - gripper_xyz) / distance
             waypoint_pos = gripper_xyz + self.delta * goal_unit_vector
+        elif error_distance > 0:
+            goal_unit_vector = (goal_xyz - gripper_xyz) / distance
+            waypoint_pos = gripper_xyz + error_distance * goal_unit_vector
         else:
-            waypoint_pos = goal_xyz
+            waypoint_pos = gripper_xyz
         # TODO: -------------- end ---------------
 
         # use an zero rotation for the waypoint (its a point so we don't need to worry about orientation)
