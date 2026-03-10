@@ -196,7 +196,6 @@ def move_to_configuration(node, q):
             'joint_wrist_yaw':q_yaw,
             'joint_wrist_roll':q_roll,
             'joint_wrist_pitch':q_pitch
-            
         }
         
     # Add only one base command to the dictionary
@@ -205,8 +204,7 @@ def move_to_configuration(node, q):
     if abs(delta_base_rot) > 0.05:
     	GOAL_POSE['rotate_mobile_base'] = delta_base_rot
     else:
-    	GOAL_POSE['translate_mobile_base'] = delta_base_trans
- 
+        GOAL_POSE['translate_mobile_base'] = delta_base_trans
     #return q_base_rot, q_base, q_lift, q_arm, q_yaw, q_pitch, q_roll
     node.move_to_pose(GOAL_POSE, blocking=False)
     # TODO: -------------- end ---------------
