@@ -32,7 +32,7 @@ class IKTargetFollowing(HelloNode):
             joint_states = msg
         # extract information needed for ik_solver
         joint_names = [
-            'joint_lift', 'joint_arm_l0', 'joint_wrist_yaw', 'joint_wrist_pitch', 'joint_wrist_roll'
+            'joint_lift', 'joint_arm', 'joint_wrist_yaw', 'joint_wrist_pitch', 'joint_wrist_roll'
         ]
         self.joint_state = {}
         for joint_name in joint_names:
@@ -44,13 +44,18 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the goal pose to the base frame
         try:
-            goal_transformed = self.tf_buffer.lookup_transform(
+            goal_transformed = self.tf_buffer.transform(
+                goal_msg,
                 self.target_frame,              # Target Frame (where we want to move)
-                "camera_color_optical_frame",   # Source Frame (where the sensor is)
-                rclpy.time.Time()               # Get the latest data
+                # "camera_color_optical_frame",   # Source Frame (where the sensor is)
+                # rclpy.time.Time()               # Get the latest data
+                timeout=rclpy.duration.Duration(seconds=0.1)
             )
+            
+            return goal_transformed
         except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().error(f"Goal Pose TF Error: {e}")
+            return None
 
         # TODO: -------------- end ---------------
 
