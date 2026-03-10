@@ -31,6 +31,9 @@ class IKTargetFollowing(HelloNode):
         
         # Temporary
         self.last_command_time = None
+
+        # Grasping
+        self.is_grasping = False
     
     def joint_states_callback(self, msg):
         # unpacks joint state messages for what works with/is expected by ikpy
@@ -95,6 +98,9 @@ class IKTargetFollowing(HelloNode):
         # self.get_logger().info(f'Received goal pose: {msg.pose}')
         #test_pose = {'joint_lift': 0.6}
         #self.move_to_pose(test_pose, blocking=False)
+        if self.is_grasping is True:
+              return
+        
         try:
             goal_transformed = self.get_goal_pose_in_base_frame(goal_msg)
             gripper_transformed = self.get_gripper_pose_in_base_frame()
@@ -105,23 +111,29 @@ class IKTargetFollowing(HelloNode):
             print("Error getting transforms")
             return
 
-        waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
-
         # TODO: ------------- start --------------
         # fill with your response
         #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
         #   to move the robot to the transformed goal point.
-        with self.joint_states_lock:
-        	q_init = ik.get_current_configuration(self.joint_state)
-        for i, link in enumerate(self.ik_chain.links):
-        	if link.joint_type != "fixed":
-        		val = q_init[i]
-        		low, high = link.bounds
-        		if val < low or val > high:
-        			print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
-        			print(f"Value: {val}, Limits: [{low}, {high}]")
         
-        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
+        # Part 2 changes: if the object is close enough to grab, grab it
+        distance = np.linalg.norm(goal_pos - gripper_pos)
+        if distance < 0.25:
+            self.is_grasping = True
+            self.execute_grasp(goal_pos)
+        else:
+            waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
+            with self.joint_states_lock:
+                q_init = ik.get_current_configuration(self.joint_state)
+            for i, link in enumerate(self.ik_chain.links):
+                if link.joint_type != "fixed":
+                    val = q_init[i]
+                    low, high = link.bounds
+                    if val < low or val > high:
+                        print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
+                        print(f"Value: {val}, Limits: [{low}, {high}]")
+        
+            q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -136,9 +148,42 @@ class IKTargetFollowing(HelloNode):
         ik.print_q(q_soln)
         if q_soln is not None:
         	current_time = self.get_clock().now()
-        	if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
+            if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
         		ik.move_to_configuration(self, q_soln)
-        		self.last_command_time = current_time
+                self.last_command_time = current_time
+        
+    def execute_grasp(self, goal_pos):
+          
+        # Function to move arm to object position and grasp the object 
+        
+        # Open gripper
+        self.move_to_pose({'gripper_finger_joint': 0.2}, blocking=True)
+
+        # Reach for the object
+        waypoint_orient = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, 0.0) # [roll, pitch, yaw] 
+        with self.joint_states_lock:
+            q_init = ik.get_current_configuration(self.joint_state)
+
+        q_soln = ik.get_grasp_goal(goal_pos, waypoint_orient, q_init)
+
+        if q_soln is not None:
+            # Move arm to the object
+            ik.move_to_configuration(self, q_soln)
+
+            # Close the gripper
+            self.move_to_pose({'gripper_finger_joint': -0.15}, blocking=True)
+
+            # Lift up the object
+            with self.joint_states_lock:
+                current_lift = self.joint_state['joint_lift']
+
+            self.move_to_pose({'joint_lift': current_lift + 0.15}, blocking=True)
+
+            # Retract arm (bring it home!)
+            self.move_to_pose({'joint_arm_l0': 0.0}, blocking=True)
+        else:
+             self.is_grasping = False
+
 
     def compute_waypoint_to_goal(self, goal_pos, gripper_pos):
 
@@ -172,7 +217,7 @@ class IKTargetFollowing(HelloNode):
         self.move_to_pose(ik.READY_POSE_P1, blocking=True)
         self.switch_to_position_mode()
         #   part 2: READY_POSE_P2
-        # self.move_to_pose(ik.READY_POSE_P2, blocking=True)
+        self.move_to_pose(ik.READY_POSE_P2, blocking=True)
 
     def main(self):
         HelloNode.main(self, 'follow_target', 'follow_target', wait_for_first_pointcloud=False)

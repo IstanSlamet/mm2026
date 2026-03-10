@@ -85,9 +85,16 @@ class YOLOEObjectDetector(Node):
         #   plotted in a cv2 window by detection_utils.visualize_detection_masks()
         # in part 2, you may need to make changes to the code to handle the head camera orientation
 
-        # https://wiki.ros.org/cv_bridge/Tutorials/ConvertingBetweenROSImagesAndOpenCVImagesPython   
-        self.latest_color = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='passthrough')
-        self.latest_depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+        # https://wiki.ros.org/cv_bridge/Tutorials/ConvertingBetweenROSImagesAndOpenCVImagesPython 
+          
+        # Convert ROS2 messages to OpenCV
+        color_image = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='passthrough')
+        depth_image = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
+
+        # Rotate images and set as latest color and depth
+        self.latest_color = cv2.rotate(color_image, cv2.ROTATE_90_CLOCKWISE)
+        self.latest_depth = cv2.rotate(depth_image, cv2.ROTATE_90_CLOCKWISE)
+        
         self.latest_color_cam_info = color_cam_info_msg #CameraInfo is not an image, so donot use Cv_bridge. It is metadata message.
 
         # save the timestamp from the header of the color image
@@ -115,7 +122,7 @@ class YOLOEObjectDetector(Node):
             detection_utils.visualize_detections_masks(
                 # TODO: minor - change the part= arg when you edit your code for part 2! 
                 #   adjusts the color scaling of the depth image display to match the camera range
-                part=1, detections=detections, rgb_image=self.latest_color, depth_image=self.latest_depth)
+                part=2, detections=detections, rgb_image=self.latest_color, depth_image=self.latest_depth)
 
         # get the goal pose and publish it, if it exists
         self.pose_msg = self.get_goal_pose(detections)
@@ -135,31 +142,7 @@ class YOLOEObjectDetector(Node):
         if detections is None or len(detections) == 0:
             return None
 
-        # TODO: ------------- start --------------
-        # # in part 1, fill with your response
-        # #   find the depth at the centroid and project it to 3D using detection_utils.pixel_to_3d()
-        # #print(detections)
-        # target_centroid = detections[target_idx]
-        # goal_msg = PoseStamped()
-        # goal_msg.header.stamp = self.latest_stamp
-        # goal_msg.header.frame_id = "camera_color_optical_frame"
-
-        # xy_pix = target_centroid["centroid"]
-        # x_pix, y_pix = xy_pix
-        # h, w = self.latest_depth.shape[:2]
-
-        # # Ensure we stay within the image boudaries
-        # y_idx = min(max(int(y_pix), 0), h-1)
-        # x_idx = min(max(int(x_pix), 0), w-1)
-
-        # z_depth = self.latest_depth[y_idx,x_idx]
-        # centroid_3d_pose = detection_utils.pixel_to_3d(xy_pix, z_depth, self.latest_color_cam_info)
-        
-        # #   convert that pose to a PoseStamped msg using detection_utils.get_pose_msg()
-        # #   save that message to self.goal_pose_msg
-
-        # self.goal_pose_msg = detection_utils.get_pose_msg(self.latest_stamp,"camera_color_optical_frame", centroid_3d_pose)
-        
+        # TODO: ------------- start --------------        
         # in part 2, edit the code you wrote for part 1 to now project all points in the mask to 3D,
         target_mask = detections[target_idx]
         goal_msg = PoseStamped()
@@ -191,7 +174,6 @@ class YOLOEObjectDetector(Node):
             "camera_color_optical_frame", 
             goal_pos
         )
-
         # TODO: -------------- end ---------------
         return self.goal_pose_msg
 
