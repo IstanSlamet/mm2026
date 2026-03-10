@@ -53,9 +53,10 @@ class IKTargetFollowing(HelloNode):
         try:
         # 1. Get the transform from the base to the camera
             transform = self.tf_buffer.lookup_transform(
-                self.target_frame,              # Target Frame (where we want to move)
-                "camera_color_optical_frame",   # Source Frame (where the sensor is)
-                rclpy.time.Time()               # Get the latest data
+                self.target_frame,                      # Target Frame (where we want to move)
+                goal_msg.header.frame_id,
+                goal_msg.header.stamp,                          # Source Frame (where the sensor is)
+                timeout=rclpy.duration.Duration(seconds=0.1)    # Get the latest data
             )
             
             # 2. Apply the transform to the actual coordinates of the object
@@ -79,13 +80,22 @@ class IKTargetFollowing(HelloNode):
         # fill with your response
         #   transform the gripper pose to the base frame
         try:
-            gripper_transformed = self.tf_buffer.lookup_transform(
+            t = self.tf_buffer.lookup_transform(
                 self.target_frame,
                 self.gripper_frame,
                 rclpy.time.Time()
-            )        
+            )
+            # Convert TransformStamped to PoseStamped
+            p = PoseStamped()
+            p.header = t.header
+            p.pose.position.x = t.transform.translation.x
+            p.pose.position.y = t.transform.translation.y
+            p.pose.position.z = t.transform.translation.z
+            p.pose.orientation = t.transform.rotation
+            return p # PoseStamped        
         except (tf2_ros.LookupException, tf2_ros.ExtrapolationException) as e:
             self.get_logger().error(f"Gripper TF Error: {e}")
+            return None
         # TODO: -------------- end ---------------
 
         return gripper_transformed
@@ -95,13 +105,20 @@ class IKTargetFollowing(HelloNode):
         # self.get_logger().info(f'Received goal pose: {msg.pose}')
         #test_pose = {'joint_lift': 0.6}
         #self.move_to_pose(test_pose, blocking=False)
-        try:
-            goal_transformed = self.get_goal_pose_in_base_frame(goal_msg)
-            gripper_transformed = self.get_gripper_pose_in_base_frame()
 
+        goal_transformed = self.get_goal_pose_in_base_frame(goal_msg)
+        gripper_transformed = self.get_gripper_pose_in_base_frame()
+
+        # Check if the TF lookups actually succeeded before proceeding
+        if goal_transformed is None or gripper_transformed is None:
+            self.get_logger().warn("Waiting for TF  tree to populate..", throttle_duration_sec=1.0)
+            return
+        #Wrap the extraction in a targeted try/except to catch real bugs
+        try:
             goal_pos = ik.get_xyz_from_msg(goal_transformed)
             gripper_pos = ik.get_xyz_from_msg(gripper_transformed)
-        except:
+        except Exception as e:
+            self.get_logger().error(f"Failed to extraxtr XYZ: {e}")
             print("Error getting transforms")
             return
 
