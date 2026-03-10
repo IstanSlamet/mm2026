@@ -86,7 +86,7 @@ class YOLOEObjectDetector(Node):
         # in part 2, you may need to make changes to the code to handle the head camera orientation
 
         # https://wiki.ros.org/cv_bridge/Tutorials/ConvertingBetweenROSImagesAndOpenCVImagesPython   
-        self.latest_color = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='passthrough')
+        self.latest_color = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='rgb8')
         self.latest_depth = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
         self.latest_color_cam_info = color_cam_info_msg #CameraInfo is not an image, so donot use Cv_bridge. It is metadata message.
 
@@ -118,9 +118,9 @@ class YOLOEObjectDetector(Node):
                 part=1, detections=detections, rgb_image=self.latest_color, depth_image=self.latest_depth)
 
         # get the goal pose and publish it, if it exists
-        self.pose_msg = self.get_goal_pose(detections)
+        self.goal_pose_msg = self.get_goal_pose(detections)
 
-        if self.pose_msg is None:
+        if self.goal_pose_msg is None:
             print("OBJECT NOT DETECTED, no pose to publish")
             return
         else:
