@@ -51,7 +51,7 @@ class IKTargetFollowing(HelloNode):
         #   transform the goal pose to the base frame
         
         try:
-        # 1. Get the transform from the base to the camera
+            # 1. Get the transform from the base to the camera
             transform = self.tf_buffer.lookup_transform(
                 self.target_frame,                      # Target Frame (where we want to move)
                 goal_msg.header.frame_id,
@@ -76,6 +76,7 @@ class IKTargetFollowing(HelloNode):
         # TODO: -------------- end ---------------
 
     def get_gripper_pose_in_base_frame(self):
+        
         # TODO: ------------- start --------------
         # fill with your response
         #   transform the gripper pose to the base frame
@@ -113,6 +114,12 @@ class IKTargetFollowing(HelloNode):
         if goal_transformed is None or gripper_transformed is None:
             self.get_logger().warn("Waiting for TF  tree to populate..", throttle_duration_sec=1.0)
             return
+        
+        # --- VISUALIZATION START ---
+        self.goal_viz_pub.publish(goal_transformed)
+        self.gripper_viz_pub.publish(gripper_transformed)
+        # --- VISUALIZATION END ---
+
         #Wrap the extraction in a targeted try/except to catch real bugs
         try:
             goal_pos = ik.get_xyz_from_msg(goal_transformed)
@@ -129,14 +136,15 @@ class IKTargetFollowing(HelloNode):
         #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
         #   to move the robot to the transformed goal point.
         with self.joint_states_lock:
-        	q_init = ik.get_current_configuration(self.joint_state)
+            q_init = ik.get_current_configuration(self.joint_state)
+            
         for i, link in enumerate(self.ik_chain.links):
-        	if link.joint_type != "fixed":
-        		val = q_init[i]
-        		low, high = link.bounds
-        		if val < low or val > high:
-        			print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
-        			print(f"Value: {val}, Limits: [{low}, {high}]")
+            if link.joint_type != "fixed":
+                val = q_init[i]
+                low, high = link.bounds
+                if val < low or val > high:
+                    print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
+                    print(f"Value: {val}, Limits: [{low}, {high}]")
         
         q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
         # TODO: -------------- end ---------------
@@ -152,10 +160,10 @@ class IKTargetFollowing(HelloNode):
 
         ik.print_q(q_soln)
         if q_soln is not None:
-        	current_time = self.get_clock().now()
-        	if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
-        		ik.move_to_configuration(self, q_soln)
-        		self.last_command_time = current_time
+            current_time = self.get_clock().now()
+            if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
+                ik.move_to_configuration(self, q_soln)
+                self.last_command_time = current_time
 
     def compute_waypoint_to_goal(self, goal_pos, gripper_pos):
 
@@ -188,7 +196,6 @@ class IKTargetFollowing(HelloNode):
 
         return waypoint_pos, waypoint_orient
 
-
     def move_to_ready_pose(self):
         # TODO: minor - uncomment the correct ready pose for part 1 or 2!
         #   part 1: 
@@ -208,7 +215,6 @@ class IKTargetFollowing(HelloNode):
         self.move_to_ready_pose()
         print("At Ready Pose")
 
-
         # TODO: ------------- start --------------
         # 1. create a tf2 buffer and listener
         ## Create the buffer(the storage unit)
@@ -221,18 +227,16 @@ class IKTargetFollowing(HelloNode):
 
         # 2. create a subscriber to the goal pose published by your object detector
         self.goal_pose_subscriber = self.create_subscription(
-            PoseStamped,                                # Message Type
-            'object_detector/goal_pose',                # Topic Name
-            callback=self.goal_callback,  		# Function to trigger
-            qos_profile=10                              # Queue Size
+            PoseStamped,                                        # Message Type
+            'object_detector/goal_pose',                        # Topic Name
+            callback=self.goal_callback,                        # Function to trigger
+            qos_profile=10                                      # Queue Size
             )
+        
+        self.goal_viz_pub = self.create_publisher(PoseStamped, '/viz/transformed_goal', 10)
+        self.gripper_viz_pub = self.create_publisher(PoseStamped, '/viz/transformed_gripper', 10)
 
         # TODO: -------------- end ---------------
-
-
-
-
-
 
 if __name__ == '__main__':
     target_follower = IKTargetFollowing()

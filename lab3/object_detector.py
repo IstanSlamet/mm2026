@@ -142,7 +142,7 @@ class YOLOEObjectDetector(Node):
         target_centroid = detections[target_idx]
         goal_msg = PoseStamped()
         goal_msg.header.stamp = self.latest_stamp
-        goal_msg.header.frame_id = "camera_color_optical_frame"
+        correct_frame_id = self.latest_color_cam_info.header.frame_id
 
         xy_pix = target_centroid["centroid"]
         x_pix, y_pix = xy_pix
@@ -158,7 +158,7 @@ class YOLOEObjectDetector(Node):
         #   convert that pose to a PoseStamped msg using detection_utils.get_pose_msg()
         #   save that message to self.goal_pose_msg
 
-        self.goal_pose_msg = detection_utils.get_pose_msg(self.latest_stamp,goal_msg.header.frame_id, centroid_3d_pose)
+        self.goal_pose_msg = detection_utils.get_pose_msg(self.latest_stamp,correct_frame_id, centroid_3d_pose)
         # in part 2, edit the code you wrote for part 1 to now project all points in the mask to 3D,
         #   then get the centroid of the resulting pointcloud to use as the goal pose (instead of the 2D centroid in part 1)
         # TODO: -------------- end ---------------
