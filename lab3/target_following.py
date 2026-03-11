@@ -179,7 +179,7 @@ class IKTargetFollowing(HelloNode):
         distance = np.linalg.norm(goal_xyz - gripper_xyz)
         
         # Distance we want to maintain
-        standoff_distance = 0.025
+        standoff_distance = 0.1
         error_distance = distance - standoff_distance
         if error_distance > self.delta:
             goal_unit_vector = (goal_xyz - gripper_xyz) / distance
