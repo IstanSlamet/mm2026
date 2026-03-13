@@ -157,10 +157,10 @@ class IKTargetFollowing(HelloNode):
 
         ik.print_q(q_soln)
         if q_soln is not None:
-        	current_time = self.get_clock().now()
+            current_time = self.get_clock().now()
             
             if self.last_command_time is None or (current_time - self.last_command_time).nanoseconds > 0.5 * 1e9:
-        		ik.move_to_configuration(self, q_soln)
+                ik.move_to_configuration(self, q_soln)
                 self.last_command_time = current_time
         
 
