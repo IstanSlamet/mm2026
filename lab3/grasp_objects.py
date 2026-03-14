@@ -58,7 +58,7 @@ class IKTargetFollowing(HelloNode):
             transform = self.tf_buffer.lookup_transform(
                 self.target_frame,
                 goal_msg.header.frame_id,
-                goal_msg.header.stamp,                          # Source Frame (where the sensor is)
+                rclpy.time.Time(),                          # get the latest available transform
                 timeout=rclpy.duration.Duration(seconds=0.1)    # Get the latest data
             )
             
@@ -116,6 +116,12 @@ class IKTargetFollowing(HelloNode):
 
             goal_pos = ik.get_xyz_from_msg(goal_transformed)
             gripper_pos = ik.get_xyz_from_msg(gripper_transformed)
+
+            # --------- DEBUG LINES ---------
+            # Update the timestamp to 'now' so RViz renders it happily
+            goal_transformed.header.stamp = self.get_clock().now().to_msg()
+            self.debug_goal_pub.publish(goal_transformed)
+            # -----------------------------------------
         except:
             print("Error getting transforms")
             return
@@ -132,18 +138,49 @@ class IKTargetFollowing(HelloNode):
             self.execute_grasp(goal_pos)
             return
         
+###################
+
         waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
-        for i, link in enumerate(self.ik_chain.links):
-            if link.joint_type != "fixed":
-                val = q_init[i]
-                low, high = link.bounds
-                if val < low or val > high:
-                    print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
-                    print(f"Value: {val}, Limits: [{low}, {high}]")
+
+        q_soln = ik.chain.inverse_kinematics(
+                waypoint_pos,
+                initial_position=q_init)
+        err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
+        
+        if not np.isclose(err, 0.0, atol=1e-2):
+            print(f"No solution")
+            q_soln = None
+        ik.print_q(q_soln)
+        if q_soln is not None:
+            ik.move_to_configuration(self, q_soln)
+        return
+
+#########################
+
+
+
+
+        
+        # waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
+        # with self.joint_states_lock:
+        #     q_init = ik.get_current_configuration(self.joint_state)
+        # for i, link in enumerate(self.ik_chain.links):
+        #     if link.joint_type != "fixed":
+        #         val = q_init[i]
+        #         low, high = link.bounds
+        #         if val < low or val > high:
+        #             print(f"!!! JOINT OUT OF BOUNDS: {link.name} !!!")
+        #             print(f"Value: {val}, Limits: [{low}, {high}]")
     
-        q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
+        # q_soln = ik.get_grasp_goal(waypoint_pos, waypoint_orient, q_init)
+
+
+
+
+
+
         # TODO: -------------- end ---------------
 
         # NOTE: if you find that the robot's base is moving too much, its likely that the ik solver is
@@ -169,9 +206,10 @@ class IKTargetFollowing(HelloNode):
         # TODO: New function to move arm to object position and grasp the object 
         
         # Open gripper
-        self.move_to_pose({'gripper_finger_joint': 0.2}, blocking=True)
+        self.move_to_pose({'gripper_aperture': 0.2}, blocking=True)
 
         # Reach for the object
+        
         waypoint_orient = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, 0.0) # [roll, pitch, yaw] 
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
@@ -183,7 +221,7 @@ class IKTargetFollowing(HelloNode):
             ik.move_to_configuration(self, q_soln)
 
             # Close the gripper
-            self.move_to_pose({'gripper_finger_joint': -0.15}, blocking=True)
+            self.move_to_pose({'gripper_aperture': -0.15}, blocking=True)
 
             # Lift up the object
             with self.joint_states_lock:
@@ -192,7 +230,7 @@ class IKTargetFollowing(HelloNode):
             self.move_to_pose({'joint_lift': current_lift + 0.15}, blocking=True)
 
             # Retract arm (bring it home!)
-            self.move_to_pose({'joint_arm_l0': 0.0}, blocking=True)
+            self.move_to_pose({'wrist_extension': 0.0}, blocking=True)
         else:
             self.is_grasping = False
 
@@ -214,10 +252,19 @@ class IKTargetFollowing(HelloNode):
             waypoint_pos = gripper_xyz + self.delta * goal_unit_vector
         else:
             waypoint_pos = goal_xyz
+        # Get the current joint configuration
+        with self.joint_states_lock:
+            q_init = ik.get_current_configuration(self.joint_state)
+            
+        # Use Forward Kinematics to extract the CURRENT rotation matrix
+        # This guarantees the wrist stays exactly where it is!
+        current_fk = self.ik_chain.forward_kinematics(q_init)
+        waypoint_orient = current_fk[:3, :3]
+
         # TODO: -------------- end ---------------
 
         # use an zero rotation for the waypoint (its a point so we don't need to worry about orientation)
-        waypoint_orient = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, 0.0) # [roll, pitch, yaw]
+        #waypoint_orient = ikpy.utils.geometry.rpy_matrix(0.0, -0.1, 0.0) # [roll, pitch, yaw]
 
         return waypoint_pos, waypoint_orient
 
@@ -226,10 +273,11 @@ class IKTargetFollowing(HelloNode):
         # TODO: minor - uncomment the correct ready pose for part 1 or 2!
         #   part 1: 
         self.switch_to_position_mode()
-        self.move_to_pose(ik.READY_POSE_P1, blocking=True)
-        self.switch_to_position_mode()
+        #self.move_to_pose(ik.READY_POSE_P1, blocking=True)
+        
         #   part 2: READY_POSE_P2
         self.move_to_pose(ik.READY_POSE_P2, blocking=True)
+        self.switch_to_position_mode()
 
     def main(self):
         HelloNode.main(self, 'follow_target', 'follow_target', wait_for_first_pointcloud=False)
@@ -261,6 +309,21 @@ class IKTargetFollowing(HelloNode):
             )
 
         # TODO: -------------- end ---------------
+        # 2. create a subscriber to the goal pose published by your object detector
+        self.goal_pose_subscriber = self.create_subscription(
+            PoseStamped,                                # Message Type
+            'object_detector/goal_pose',                # Topic Name
+            callback=self.goal_callback,          # Function to trigger
+            qos_profile=10                              # Queue Size
+            )
+
+        # --------- DEBUG PUBLISHER ---------
+        self.debug_goal_pub = self.create_publisher(
+            PoseStamped, 
+            '/debug/transformed_goal_pose', 
+            10
+        )
+        # --------------------------------------------
 
 
 

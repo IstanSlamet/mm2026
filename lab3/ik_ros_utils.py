@@ -14,7 +14,7 @@ READY_POSE_P1 = {
 }
 
 READY_POSE_P2 = {
-    'joint_lift': 0.8,
+    'joint_lift': 0.9,
     'joint_arm': 0.0,
     'joint_wrist_yaw': 0.0,
     'joint_wrist_pitch': -0.1,
@@ -158,7 +158,10 @@ def get_current_grasp_pose():
 def get_grasp_goal(target_point, target_orientation, q_init):
     # previously the move_to_grasp() function from lab 2
     #   moved to it's own function without the final move_to_configuration() call for convenience in this lab
+
+    
     q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='all', initial_position=q_init)
+    
     # print('Solution:', q_soln)
     print("Solution Found")
 
@@ -190,7 +193,7 @@ def move_to_configuration(node, q):
         #delta_base_trans = q_base
         #delta_base_rot = q_base_rot
     
-    node.move_to_pose({'rotate_mobile_base':q_base_rot}, blocking=True)
+    node.move_to_pose({'rotate_mobile_base':q_base_rot}, blocking=False)
 
     GOAL_POSE = {
             'translate_mobile_base':q_base,
