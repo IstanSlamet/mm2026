@@ -111,7 +111,7 @@ class IK:
         q_pitch = q[12]
         q_roll = q[13]
 
-        q = [q_lift, q_arm/4.0, q_arm/4.0, q_arm/4.0, q_arm/4.0, q_yaw, q_pitch, q_roll]
+        q = [q_lift, q_arm/4.0, q_arm/4.0, q_arm/4.0, q_arm/4.0, q_yaw, q_pitch, q_roll, 0, 0]
 
         radius = 0.0508
         wheel_base = 0.36

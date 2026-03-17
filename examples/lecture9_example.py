@@ -27,6 +27,8 @@ m.step_simulation(steps=100, realtime=False)
 object_position, object_orientation = mustard.get_base_pos_orient()
 m.Points([object_position])
 
+# robot.control([0.5, 0.5], joints=[26, 29])
+
 euler = [-np.pi/2, 0, 0]
 
 ik.move_to_grasp_goal(object_position, euler, max_rotation_steps=300, max_translation_steps=1000)
