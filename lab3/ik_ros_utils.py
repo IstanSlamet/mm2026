@@ -58,8 +58,22 @@ def get_modified_urdf():
     # TODO: ------------- start --------------
     # fill with your response
     #   your implementation from lab 2 - add a virtual base rotation joint to the urdf
-    # TODO: -------------- end ---------------
+    # Add virtual base rotation joint
+    joint_base_rotation = urdfpy.Joint(name='joint_base_rotation',
+                                        parent='base_link',
+                                        child='link_base_rotation',
+                                        joint_type='revolute',
+                                        axis=np.array([0.0, 0.0, 1.0]),
+                                        origin=np.eye(4, dtype=np.float64),
+                                        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-np.pi, upper=np.pi))
+    modified_urdf._joints.append(joint_base_rotation)
+    link_base_rotation = urdfpy.Link(name='link_base_rotation',
+                                        inertial=None,
+                                        visuals=None,
+                                        collisions=None)
+    modified_urdf._links.append(link_base_rotation)
 
+    # Add virtual base joint
     joint_base_translation = urdfpy.Joint(name='joint_base_translation',
                                         parent='link_base_rotation',
                                         child='link_base_translation',
@@ -73,6 +87,7 @@ def get_modified_urdf():
                                         visuals=None,
                                         collisions=None)
     modified_urdf._links.append(link_base_translation)
+    # TODO: -------------- end ---------------
     # amend the chain
     for j in modified_urdf._joints:
         if j.name == 'joint_mast':
@@ -94,8 +109,45 @@ def get_current_configuration(joint_state):
     #   your implementation from lab 2 - get the current configuration from the joint state
     #   note: this time you can use the joint state callback provided for you in target_following.py which provides joint states as a
     #   dictionary that can be indexed by joint name, e.g. joint_state['joint_lift']
-    q = None
+    if joint_state is None:
+        return None
+            
+    # 1. Get raw values from the JointState message
+    # bounding is handled by ROS2 internally
+    # After getting q_lift and q_arm "clip" them to be within safe ranges
+    q_lift = max(0.0, joint_state['joint_lift'])
+    q_arm = max(0.0, joint_state['joint_arm_l0']) # Total arm extension
+    q_yaw = joint_state['joint_wrist_yaw']
+    q_pitch = joint_state['joint_wrist_pitch']
+    q_roll = joint_state['joint_wrist_roll']
 
+    # To get the 4-segment arm, dividing total extension by 4.0
+    q_arml = q_arm / 4.0
+
+
+    # Return the array in the specific order
+    q = [
+        0.0,       # 0. base_link (Fixed)
+        0.0,       # 1. joint_base_rotation (Revolute)
+        0.0,       # 2. joint_base_translation (Prismatic)
+        0.0,       # 3. joint_mast (Fixed)
+        q_lift,    # 4. joint_lift (Prismatic)
+        0.0,       # 5. joint_arm_l4 (Fixed)
+        q_arml,    # 6. joint_arm_l3 (Prismatic)
+        q_arml,    # 7. joint_arm_l2 (Prismatic)
+        q_arml,    # 8. joint_arm_l1 (Prismatic)
+        q_arml,    # 9. joint_arm_l0 (Prismatic)
+        q_yaw,     # 10. joint_wrist_yaw (Revolute)
+        0.0,       # 11. joint_wrist_yaw_bottom (Fixed)
+        q_pitch,   # 12. joint_wrist_pitch (Revolute)
+        q_roll,    # 13. joint_wrist_roll (Revolute)
+        0.0,       # 14. joint_gripper_s3_body (Fixed)
+        0.0        # 15. joint_grasp_center (Fixed)
+    ]
+    # Clip only the arm segments to be at least 0.0
+    for idx in [6, 7, 8, 9]:
+    	q[idx] = max(0.0, q[idx])
+    
     return q
     # TODO: -------------- end ---------------
 
@@ -121,7 +173,43 @@ def move_to_configuration(node, q):
     # TODO: ------------- start --------------
     # fill with your response
     #   your implementation from lab 2 - unpack the q solution to appropriate ros2 joints and command the robot joints to move accordingly
+    q_base_rot = q[1]
+    q_base = q[2]
+    q_lift = q[4]
+    q_arm = q[6] + q[7] + q[8] + q[9]
+    q_yaw = q[10]
+    q_pitch = q[12]
+    q_roll = q[13]
+    # 2. Unpack the current state of the base from the node
+    #with node.joint_states_lock:
+        # Assuming your virtual base joints start at 0.0 in your IK logic
+        # If your IK resets the virtual base to 0.0 every calculation, 
+        # then goal_base_trans IS your relative delta!
+        
+        # IF IK treats the base as starting at 0 every time:
+        #delta_base_trans = q_base
+        #delta_base_rot = q_base_rot
     
+    node.move_to_pose({'rotate_mobile_base':q_base_rot}, blocking=True)
+
+    GOAL_POSE = {
+            'translate_mobile_base':q_base,
+            'joint_lift':q_lift,
+            'wrist_extension':q_arm,
+            'joint_wrist_yaw':q_yaw,
+            'joint_wrist_roll':q_roll,
+            'joint_wrist_pitch':q_pitch
+        }
+        
+    # Add only one base command to the dictionary
+    # If the robot needs to turn more than a tiny bit, only rotate
+    # otherwise, drive forward/backward
+    # if abs(delta_base_rot) > 0.6:
+    # 	GOAL_POSE['rotate_mobile_base'] = delta_base_rot
+    # else:
+    #     GOAL_POSE['translate_mobile_base'] = delta_base_trans
+    #return q_base_rot, q_base, q_lift, q_arm, q_yaw, q_pitch, q_roll
+    node.move_to_pose(GOAL_POSE, blocking=True)
     # TODO: -------------- end ---------------
 
 def print_q(q):
