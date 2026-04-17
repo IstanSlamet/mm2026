@@ -32,8 +32,6 @@ Subscribed topics:
 
 import os
 
-import cv2
-import numpy as np
 import rclpy
 import yaml
 from cv_bridge import CvBridge
@@ -157,37 +155,25 @@ class GripperObjectDetector(Node):
 
     def _get_goal_pose(self, detections, target_idx: int = 0) -> PoseStamped | None:
         """
-        Project the best detection's segmentation mask to 3D and return a
-        PoseStamped at the point-cloud centroid of the mask.
-
-        No coordinate unrotation is needed here because the D405 image is used
-        directly without any rotation (unlike the head camera).
+        Project the 2D centroid of the best detection to 3D using the depth
+        value at that pixel and return it as a PoseStamped.
         """
         if not detections:
             return None
 
-        mask_polygon = detections[target_idx]['mask']  # Nx2 array of [x, y] pixel coords
+        centroid = detections[target_idx]['centroid']  # (x, y) pixel coords
+        x_pix, y_pix = centroid
 
         h, w = self.latest_depth.shape[:2]
+        y_idx = min(max(int(y_pix), 0), h - 1)
+        x_idx = min(max(int(x_pix), 0), w - 1)
 
-        # Rasterise the polygon to a binary mask
-        binary_mask = np.zeros((h, w), dtype=np.uint8)
-        cv2.fillPoly(binary_mask, [mask_polygon], 1)
-        rows, cols = np.where(binary_mask > 0)  # row=y, col=x
-
-        # Project each mask pixel to 3D
-        points_3d = []
-        for r, c in zip(rows, cols):
-            depth_val = self.latest_depth[r, c]
-            if depth_val > 0:
-                point = detection_utils.pixel_to_3d(
-                    (c, r), depth_val, self.latest_cam_info)
-                points_3d.append(point)
-
-        if not points_3d:
+        depth_val = self.latest_depth[y_idx, x_idx]
+        if depth_val == 0:
             return None
 
-        goal_xyz = np.mean(np.array(points_3d), axis=0)
+        goal_xyz = detection_utils.pixel_to_3d(
+            (x_idx, y_idx), depth_val, self.latest_cam_info)
 
         frame_id = self.latest_cam_info.header.frame_id
         return detection_utils.get_pose_msg(self.latest_stamp, frame_id, goal_xyz)
