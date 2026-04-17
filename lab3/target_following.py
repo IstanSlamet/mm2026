@@ -38,7 +38,7 @@ class IKTargetFollowing(HelloNode):
             joint_states = msg
         # extract information needed for ik_solver
         joint_names = [
-            'joint_lift', 'joint_arm', 'joint_wrist_yaw', 'joint_wrist_pitch', 'joint_wrist_roll'
+            'joint_lift', 'joint_arm_l0', 'joint_wrist_yaw', 'joint_wrist_pitch', 'joint_wrist_roll'
         ]
         self.joint_state = {}
         for joint_name in joint_names:
@@ -52,6 +52,8 @@ class IKTargetFollowing(HelloNode):
 
         goal_transformed = None
         # TODO: -------------- end ---------------
+
+        return goal_transformed
 
     def get_gripper_pose_in_base_frame(self):
         

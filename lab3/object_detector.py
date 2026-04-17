@@ -134,6 +134,23 @@ class YOLOEObjectDetector(Node):
         # TODO: ------------- start --------------
         # in part 1, fill with your response
         #   find the depth at the centroid and project it to 3D using detection_utils.pixel_to_3d()
+        #print(detections)
+        target_centroid = detections[target_idx]
+        goal_msg = PoseStamped()
+        goal_msg.header.stamp = self.latest_stamp
+        goal_msg.header.frame_id = "camera_color_optical_frame"
+
+        xy_pix = target_centroid["centroid"]
+        x_pix, y_pix = xy_pix
+        h, w = self.latest_depth.shape[:2]
+
+        # Ensure we stay within the image boudaries
+        y_idx = min(max(int(y_pix), 0), h-1)
+        x_idx = min(max(int(x_pix), 0), w-1)
+
+        z_depth = self.latest_depth[y_pix,x_pix]
+        centroid_3d_pose = detection_utils.pixel_to_3d(xy_pix, z_depth, self.latest_color_cam_info)
+        
         #   convert that pose to a PoseStamped msg using detection_utils.get_pose_msg()
         #   save that message to self.goal_pose_msg
         # in part 2, edit the code you wrote for part 1 to now project all points in the mask to 3D,
