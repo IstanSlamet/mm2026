@@ -102,7 +102,15 @@ class PreGraspApproach(HelloNode):
             self.get_logger().info('At approach distance. Rotating 90° CCW to align arm...')
             self.last_command_time = self.get_clock().now()
             self.move_to_pose({'rotate_mobile_base': math.pi / 2}, blocking=True)
+            
+            self.move_to_pose({
+                'joint_lift': 0.6,          # raise arm up the mast
+                'joint_wrist_pitch': -0.9,  # tilt gripper/camera to face down
+                'wrist_extension': 0.1,     # small extension to clear the robot body
+            }, blocking=True)
+
             self.done = True
+
             self.get_logger().info('Pre-grasp approach complete!')
             return
 
