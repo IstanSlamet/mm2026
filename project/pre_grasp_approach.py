@@ -28,8 +28,8 @@ from sensor_msgs.msg import JointState
 import tf2_ros
 import tf2_geometry_msgs
 
-APPROACH_DISTANCE = 0.15   # meters — desired standoff from object
-DISTANCE_THRESHOLD = 0.02  # meters — tolerance to consider "arrived"
+APPROACH_DISTANCE = 1.0   # meters — desired standoff from object
+DISTANCE_THRESHOLD = 0.05  # meters — tolerance to consider "arrived"
 ANGLE_THRESHOLD = 0.05     # radians — tolerance to consider heading aligned
 MAX_TRANSLATE_STEP = 0.10  # meters — max base translation per step
 
