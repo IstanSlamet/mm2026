@@ -148,9 +148,9 @@ class MissionManager(Node):
         self.get_logger().info('=== STATE: PRE_GRASP ===')
         self.state = MissionState.PRE_GRASP
 
-        # Patrol is done — shut down both patrol processes cleanly.
+        # Only kill patrol — gripper_object_detector keeps running because
+        # pre_grasp_approach.py subscribes to /gripper_detector/goal_pose.
         self._kill('patrol')
-        self._kill('gripper_detector')
         time.sleep(1.0)   # brief pause so ports / topics settle
 
         self._launch('pre_grasp', 'pre_grasp_approach.py')

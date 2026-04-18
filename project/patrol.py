@@ -193,7 +193,10 @@ def main():
     if object_found and monitor.object_pose is not None:
         navigator.get_logger().info('Publishing object pose for pre-grasp stage.')
         for _ in range(5):
-            monitor.object_pose_pub.publish(monitor.object_pose)
+            try:
+                monitor.object_pose_pub.publish(monitor.object_pose)
+            except Exception:
+                break
             navigator.get_clock().sleep_for(Duration(seconds=0.1))
 
     navigator.get_logger().info('Patrol complete.')

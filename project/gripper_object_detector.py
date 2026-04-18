@@ -127,8 +127,12 @@ class GripperObjectDetector(Node):
             self.get_logger().info('Waiting for camera frames...', throttle_duration_sec=5)
             return
 
-        results    = self.model(self.latest_color)
-        detections = detection_utils.parse_results(results)
+        try:
+            results    = self.model(self.latest_color)
+            detections = detection_utils.parse_results(results)
+        except Exception as e:
+            self.get_logger().error(f'Detection error: {e}')
+            return
 
         if self.visualize:
             detection_utils.visualize_detections_masks(
@@ -145,8 +149,11 @@ class GripperObjectDetector(Node):
             self.found_pub.publish(Bool(data=False))
             return
 
-        self.found_pub.publish(Bool(data=True))
-        self.goal_pub.publish(pose_msg)
+        try:
+            self.found_pub.publish(Bool(data=True))
+            self.goal_pub.publish(pose_msg)
+        except Exception:
+            return
         self.get_logger().info('---------- Published Goal Pose ----------')
 
     # ------------------------------------------------------------------
