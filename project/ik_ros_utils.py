@@ -17,7 +17,7 @@ READY_POSE_P2 = {
     'joint_lift': 0.9,
     'joint_arm': 0.0,
     'joint_wrist_yaw': 0.0,
-    'joint_wrist_pitch': -0.1,
+    'joint_wrist_pitch': -1.57,
     'gripper_aperture': 0.5,
     'joint_head_pan':-1.6,
     'joint_head_tilt':-0.5,
@@ -193,11 +193,7 @@ def move_to_configuration(node, q):
         #delta_base_trans = q_base
         #delta_base_rot = q_base_rot
     
-<<<<<<< HEAD
     node.move_to_pose({'rotate_mobile_base':q_base_rot}, blocking=True)
-=======
-    node.move_to_pose({'rotate_mobile_base':q_base_rot}, blocking=False)
->>>>>>> origin/Istan
 
     GOAL_POSE = {
             'translate_mobile_base':q_base,

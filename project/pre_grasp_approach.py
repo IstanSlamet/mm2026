@@ -28,7 +28,7 @@ from sensor_msgs.msg import JointState
 import tf2_ros
 import tf2_geometry_msgs
 
-APPROACH_DISTANCE = 1.0   # meters — desired standoff from object
+APPROACH_DISTANCE = 0.65   # meters — desired standoff from object
 DISTANCE_THRESHOLD = 0.05  # meters — tolerance to consider "arrived"
 ANGLE_THRESHOLD = 0.05     # radians — tolerance to consider heading aligned
 MAX_TRANSLATE_STEP = 0.10  # meters — max base translation per step
@@ -82,6 +82,13 @@ class PreGraspApproach(HelloNode):
                 (current_time - self.last_command_time).nanoseconds < 1.0e9:
             return
 
+        # Use camera-frame depth directly — goal_msg.pose is in the gripper
+        # camera optical frame, so position.z is the physical camera-to-object
+        # distance. Base_link Euclidean distance never converges because the
+        # camera is already ~0.3-0.4 m ahead of the base.
+        depth = goal_msg.pose.position.z
+
+        # Still need base_link for the heading angle so the base drives toward the object.
         goal_in_base = self.get_goal_in_base_frame(goal_msg)
         if goal_in_base is None:
             self.get_logger().warn('Waiting for TF tree...', throttle_duration_sec=1.0)
@@ -89,27 +96,25 @@ class PreGraspApproach(HelloNode):
 
         obj_x = goal_in_base.pose.position.x
         obj_y = goal_in_base.pose.position.y
-
-        distance = math.sqrt(obj_x ** 2 + obj_y ** 2)
-        angle = math.atan2(obj_y, obj_x)  # angle from robot's forward (+x) to the object
+        angle = math.atan2(obj_y, obj_x)  # angle from robot's +x to the object
 
         self.get_logger().info(
-            f'Object in base_link — dist: {distance:.3f} m, angle: {math.degrees(angle):.1f} deg'
+            f'Camera depth: {depth:.3f} m  |  heading error: {math.degrees(angle):.1f} deg'
         )
 
-        if distance <= APPROACH_DISTANCE + DISTANCE_THRESHOLD:
-            # Arrived at standoff distance — rotate 90° CCW to align arm with object
+        if depth <= APPROACH_DISTANCE + DISTANCE_THRESHOLD:
+            # Set done immediately — prevents concurrent callbacks (ReentrantCallbackGroup)
+            # from issuing conflicting commands while the blocking moves below run.
+            self.done = True
             self.get_logger().info('At approach distance. Rotating 90° CCW to align arm...')
-            self.last_command_time = self.get_clock().now()
             self.move_to_pose({'rotate_mobile_base': math.pi / 2}, blocking=True)
-            
+
+            self.get_logger().info('Raising mast and pointing wrist camera down...')
             self.move_to_pose({
-                'joint_lift': 0.6,          # raise arm up the mast
+                'joint_lift': 1.0,          # raise arm up the mast
                 'joint_wrist_pitch': -0.9,  # tilt gripper/camera to face down
                 'wrist_extension': 0.1,     # small extension to clear the robot body
             }, blocking=True)
-
-            self.done = True
 
             self.get_logger().info('Pre-grasp approach complete!')
             return
@@ -120,7 +125,7 @@ class PreGraspApproach(HelloNode):
             self.last_command_time = self.get_clock().now()
             self.move_to_pose({'rotate_mobile_base': angle}, blocking=True)
         else:
-            drive = min(distance - APPROACH_DISTANCE, MAX_TRANSLATE_STEP)
+            drive = min(depth - APPROACH_DISTANCE, MAX_TRANSLATE_STEP)
             self.get_logger().info(f'Driving toward object: {drive:.3f} m')
             self.last_command_time = self.get_clock().now()
             self.move_to_pose({'translate_mobile_base': drive}, blocking=True)
