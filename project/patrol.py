@@ -3,33 +3,33 @@
 Patrol script for Stretch 3.
 
 Follows a set of hardcoded waypoints in a loop using Nav2 and monitors
-/patrol_detector/object_found.  When the target object is detected the
+/gripper_detector/object_found.  When the target object is detected the
 navigation task is cancelled and the object's pose is published so the
 next stage (pre-grasp approach) can take over.
 
 Run alongside:
-  python3 patrol_object_detector.py
+  python3 gripper_object_detector.py
 
 Published topics:
   /task/object_pose  (geometry_msgs/PoseStamped)
       Pose of the found object — consumed by the pre-grasp approach stage.
 
-Requires (start before running this):
+Requires (start in this order before running this script):
   ros2 launch stretch_core stretch_driver.launch.py
-  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False
-  ros2 launch stretch_core d435i_low_resolution.launch.py
+  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/path/to/your_map.yaml
+  ros2 launch stretch_core d405_basic.launch.py
 """
 
 import threading
 from copy import deepcopy
 
 import rclpy
-import yaml
 from geometry_msgs.msg import PoseStamped
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.duration import Duration
 from std_msgs.msg import Bool
+from std_srvs.srv import Trigger
 from stretch_nav2.robot_navigator import BasicNavigator, TaskResult
 
 
@@ -60,7 +60,7 @@ POLL_PERIOD_SEC = 0.5
 
 class PatrolMonitor(Node):
     """
-    Subscribes to the patrol detector and exposes the latest state as plain
+    Subscribes to the gripper detector and exposes the latest state as plain
     attributes so the main patrol loop can poll them without callbacks.
     """
 
@@ -70,10 +70,10 @@ class PatrolMonitor(Node):
         self.object_pose: PoseStamped | None = None
 
         self.create_subscription(
-            Bool, '/patrol_detector/object_found',
+            Bool, '/gripper_detector/object_found',
             self._found_callback, 10)
         self.create_subscription(
-            PoseStamped, '/patrol_detector/goal_pose',
+            PoseStamped, '/gripper_detector/goal_pose',
             self._pose_callback, 10)
 
         # Publish the found pose so the task manager / pre-grasp node picks it up
@@ -119,6 +119,15 @@ def main():
     executor.add_node(monitor)
     spin_thread = threading.Thread(target=executor.spin, daemon=True)
     spin_thread.start()
+
+    # Switch robot to navigation mode so Nav2 can send cmd_vel.
+    # Any prior HelloNode script (grasp, IK, etc.) may have left it in position mode.
+    nav_mode_client = monitor.create_client(Trigger, '/switch_to_navigation_mode')
+    if nav_mode_client.wait_for_service(timeout_sec=5.0):
+        nav_mode_client.call_async(Trigger.Request())
+        navigator.get_logger().info('Switched to navigation mode.')
+    else:
+        navigator.get_logger().warning('/switch_to_navigation_mode service not available — continuing anyway.')
 
     navigator.waitUntilNav2Active()
     navigator.get_logger().info('Nav2 active — starting patrol.')
