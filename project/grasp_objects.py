@@ -308,40 +308,18 @@ class IKTargetFollowing(HelloNode):
         print("At grasp-start pose")
 
 
-        # TODO: ------------- start --------------
-        # 1. create a tf2 buffer and listener
-        ## Create the buffer(the storage unit)
         self.tf_buffer = tf2_ros.Buffer()
-        ## Create the listener (the data collector)
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        ## A TF buffer in ROS is a data storage container that records coordinate frame transforms over time, allowing nodes
-        ## to look up relationships between frames at specific timestamps
-
-        # 2. create a subscriber to the goal pose published by your object detector
         self.goal_pose_subscriber = self.create_subscription(
-            PoseStamped,                                # Message Type
-            'object_detector/goal_pose',                # Topic Name
-            callback=self.goal_callback,  		# Function to trigger
-            qos_profile=10                              # Queue Size
-            )
-
-        # TODO: -------------- end ---------------
-        # 2. create a subscriber to the goal pose published by your object detector
-        self.goal_pose_subscriber = self.create_subscription(
-            PoseStamped,                                # Message Type
-            'object_detector/goal_pose',                # Topic Name
-            callback=self.goal_callback,          # Function to trigger
-            qos_profile=10                              # Queue Size
-            )
-
-        # --------- DEBUG PUBLISHER ---------
-        self.debug_goal_pub = self.create_publisher(
             PoseStamped,
-            '/debug/transformed_goal_pose',
-            10
+            '/gripper_detector/goal_pose',
+            callback=self.goal_callback,
+            qos_profile=10,
         )
-        # --------------------------------------------
+
+        self.debug_goal_pub = self.create_publisher(
+            PoseStamped, '/debug/transformed_goal_pose', 10)
 
         self.grasp_done_pub = self.create_publisher(Bool, '/task/grasp_complete', 10)
 

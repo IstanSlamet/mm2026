@@ -38,6 +38,7 @@ from enum import Enum, auto
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
@@ -70,7 +71,14 @@ class MissionManager(Node):
         self._grasp_done        = False
         self._return_home_done  = False
 
-        # --- subscribers (stage-completion signals) ---
+        # Home pose — recorded from the 2D initial pose estimate set in RViz
+        # (/initialpose), used by return_home.py to navigate back.
+        self._home_pose: PoseStamped | None = None
+
+        # --- subscribers ---
+        self.create_subscription(
+            PoseWithCovarianceStamped, '/initialpose',
+            self._initial_pose_callback, 10)
         self.create_subscription(
             PoseStamped, '/task/object_pose',
             self._object_pose_callback, 10)
@@ -84,8 +92,9 @@ class MissionManager(Node):
             Bool, '/task/return_home_complete',
             self._return_home_done_callback, 10)
 
-        # --- publisher: current state for external monitoring ---
-        self.state_pub = self.create_publisher(String, '/mission/state', 10)
+        # --- publishers ---
+        self.state_pub     = self.create_publisher(String,      '/mission/state',   10)
+        self.home_pose_pub = self.create_publisher(PoseStamped, '/task/home_pose',  10)
 
         # State machine runs every 0.5 s; transitions happen in background threads
         # so the timer callback never blocks the ROS executor.
@@ -96,6 +105,16 @@ class MissionManager(Node):
     # ------------------------------------------------------------------
     # ROS callbacks — only set flags, no heavy work
     # ------------------------------------------------------------------
+
+    def _initial_pose_callback(self, msg: PoseWithCovarianceStamped):
+        # Record the first 2D pose estimate from RViz as the home position.
+        if self._home_pose is None:
+            home = PoseStamped()
+            home.header = msg.header
+            home.pose   = msg.pose.pose
+            self._home_pose = home
+            self.get_logger().info(
+                f'Home pose recorded: ({home.pose.position.x:.2f}, {home.pose.position.y:.2f})')
 
     def _object_pose_callback(self, _msg: PoseStamped):
         if self.state == MissionState.PATROL:
@@ -123,6 +142,9 @@ class MissionManager(Node):
 
     def _tick(self):
         self.state_pub.publish(String(data=self.state.name))
+        if self._home_pose is not None:
+            self._home_pose.header.stamp = self.get_clock().now().to_msg()
+            self.home_pose_pub.publish(self._home_pose)
 
         if self._transitioning:
             return  # a transition is already in progress
@@ -166,10 +188,10 @@ class MissionManager(Node):
         self.get_logger().info('=== STATE: PATROL ===')
         self.state = MissionState.PATROL
 
-        # Start detector first, give it 2 s to load the YOLO model before
+        # Start detector first, give it 4 s to load the YOLO model before
         # patrol.py begins following waypoints and checking for detections.
         self._launch('gripper_detector', 'gripper_object_detector.py')
-        time.sleep(2.0)
+        time.sleep(4.0)
         self._launch('patrol', 'patrol.py')
 
     def _enter_pre_grasp(self):

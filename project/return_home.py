@@ -29,22 +29,22 @@ from stretch_nav2.robot_navigator import BasicNavigator, TaskResult
 
 
 # ---------------------------------------------------------------------------
-# Home pose — must match the first waypoint in patrol.py's PATROL_ROUTE
-# ---------------------------------------------------------------------------
-HOME_X  =  0.0
-HOME_Y  =  0.0
-HOME_QZ =  0.0
-HOME_QW =  1.0
-
-
-# ---------------------------------------------------------------------------
-# Publisher node — thin companion to BasicNavigator
+# Monitor node — subscribes to home pose + publishes completion
 # ---------------------------------------------------------------------------
 
 class ReturnHomeMonitor(Node):
     def __init__(self):
         super().__init__('return_home_monitor')
+        self.home_pose: PoseStamped | None = None
         self.done_pub = self.create_publisher(Bool, '/task/return_home_complete', 10)
+        # Home pose published continuously by mission_manager from the
+        # 2D initial pose estimate the operator set in RViz.
+        self.create_subscription(
+            PoseStamped, '/task/home_pose',
+            self._home_pose_callback, 10)
+
+    def _home_pose_callback(self, msg: PoseStamped):
+        self.home_pose = msg
 
 
 # ---------------------------------------------------------------------------
@@ -74,16 +74,23 @@ def main():
 
     navigator.waitUntilNav2Active()
 
-    # Build home pose
-    home = PoseStamped()
-    home.header.frame_id = 'map'
-    home.header.stamp = navigator.get_clock().now().to_msg()
-    home.pose.position.x = HOME_X
-    home.pose.position.y = HOME_Y
-    home.pose.orientation.z = HOME_QZ
-    home.pose.orientation.w = HOME_QW
+    # Wait for home pose from mission_manager (published from the RViz
+    # 2D initial pose estimate set by the operator before the mission).
+    navigator.get_logger().info('Waiting for home pose from /task/home_pose...')
+    deadline = time.time() + 10.0
+    while monitor.home_pose is None and time.time() < deadline:
+        time.sleep(0.2)
 
-    navigator.get_logger().info(f'Navigating home: ({HOME_X}, {HOME_Y})')
+    if monitor.home_pose is None:
+        navigator.get_logger().error('No home pose received — cannot navigate home.')
+        executor.shutdown()
+        rclpy.shutdown()
+        return
+
+    home = monitor.home_pose
+    home.header.stamp = navigator.get_clock().now().to_msg()
+    navigator.get_logger().info(
+        f'Navigating home: ({home.pose.position.x:.2f}, {home.pose.position.y:.2f})')
     navigator.goToPose(home)
 
     while not navigator.isTaskComplete():
