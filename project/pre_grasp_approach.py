@@ -147,7 +147,6 @@ class PreGraspApproach(HelloNode):
             'gripper_aperture': 0.5,
         }
 
-        self.stow_the_robot()
         self.switch_to_position_mode()
         self.move_to_pose(READY_POSE, blocking=True)
         self.get_logger().info('At ready pose — waiting for detections on /gripper_detector/goal_pose')

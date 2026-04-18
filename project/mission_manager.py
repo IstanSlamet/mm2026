@@ -50,6 +50,7 @@ class MissionState(Enum):
     IDLE      = auto()
     PATROL    = auto()
     PRE_GRASP = auto()
+    GRASP     = auto()
     DONE      = auto()
 
 
@@ -65,6 +66,7 @@ class MissionManager(Node):
         # Flags set by ROS callbacks, consumed by the state machine tick
         self._object_found = False
         self._pre_grasp_done = False
+        self._grasp_done = False
 
         # --- subscribers (stage-completion signals) ---
         self.create_subscription(
@@ -73,6 +75,9 @@ class MissionManager(Node):
         self.create_subscription(
             Bool, '/task/pre_grasp_complete',
             self._pre_grasp_done_callback, 10)
+        self.create_subscription(
+            Bool, '/task/grasp_complete',
+            self._grasp_done_callback, 10)
 
         # --- publisher: current state for external monitoring ---
         self.state_pub = self.create_publisher(String, '/mission/state', 10)
@@ -97,6 +102,11 @@ class MissionManager(Node):
             self.get_logger().info('Pre-grasp complete signal received.')
             self._pre_grasp_done = True
 
+    def _grasp_done_callback(self, msg: Bool):
+        if msg.data and self.state == MissionState.GRASP:
+            self.get_logger().info('Grasp complete signal received.')
+            self._grasp_done = True
+
     # ------------------------------------------------------------------
     # State machine tick  (runs every 0.5 s in the ROS timer thread)
     # ------------------------------------------------------------------
@@ -116,6 +126,10 @@ class MissionManager(Node):
 
         elif self.state == MissionState.PRE_GRASP and self._pre_grasp_done:
             self._pre_grasp_done = False
+            self._transition(self._enter_grasp)
+
+        elif self.state == MissionState.GRASP and self._grasp_done:
+            self._grasp_done = False
             self._transition(self._enter_done)
 
     def _transition(self, fn):
@@ -154,6 +168,15 @@ class MissionManager(Node):
         time.sleep(1.0)   # brief pause so ports / topics settle
 
         self._launch('pre_grasp', 'pre_grasp_approach.py')
+
+    def _enter_grasp(self):
+        self.get_logger().info('=== STATE: GRASP ===')
+        self.state = MissionState.GRASP
+
+        self._kill('pre_grasp')
+        time.sleep(1.0)
+
+        self._launch('grasp', 'grasp_objects.py')
 
     def _enter_done(self):
         self.get_logger().info('=== STATE: DONE — Mission complete ===')

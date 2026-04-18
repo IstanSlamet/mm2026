@@ -9,6 +9,7 @@ import threading
 import tf2_ros
 from tf2_geometry_msgs import TransformStamped
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Bool
 import ik_ros_utils as ik
 import ikpy
 
@@ -231,6 +232,8 @@ class IKTargetFollowing(HelloNode):
 
             # Retract arm (bring it home!)
             self.move_to_pose({'wrist_extension': 0.0}, blocking=True)
+
+            self.grasp_done_pub.publish(Bool(data=True))
         else:
             self.is_grasping = False
 
@@ -319,11 +322,13 @@ class IKTargetFollowing(HelloNode):
 
         # --------- DEBUG PUBLISHER ---------
         self.debug_goal_pub = self.create_publisher(
-            PoseStamped, 
-            '/debug/transformed_goal_pose', 
+            PoseStamped,
+            '/debug/transformed_goal_pose',
             10
         )
         # --------------------------------------------
+
+        self.grasp_done_pub = self.create_publisher(Bool, '/task/grasp_complete', 10)
 
 
 
