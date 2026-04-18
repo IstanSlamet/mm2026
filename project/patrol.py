@@ -21,6 +21,7 @@ Requires (start in this order before running this script):
 """
 
 import threading
+import time
 from copy import deepcopy
 
 import rclpy
@@ -121,10 +122,15 @@ def main():
     spin_thread.start()
 
     # Switch robot to navigation mode so Nav2 can send cmd_vel.
-    # Any prior HelloNode script (grasp, IK, etc.) may have left it in position mode.
+    # stretch_driver starts in position mode by default — we must wait for
+    # the service response before proceeding, otherwise Nav2 starts sending
+    # cmd_vel before the mode switch completes.
     nav_mode_client = monitor.create_client(Trigger, '/switch_to_navigation_mode')
     if nav_mode_client.wait_for_service(timeout_sec=5.0):
-        nav_mode_client.call_async(Trigger.Request())
+        future = nav_mode_client.call_async(Trigger.Request())
+        deadline = time.time() + 5.0
+        while not future.done() and time.time() < deadline:
+            time.sleep(0.1)
         navigator.get_logger().info('Switched to navigation mode.')
     else:
         navigator.get_logger().warning('/switch_to_navigation_mode service not available — continuing anyway.')
