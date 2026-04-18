@@ -23,7 +23,7 @@ Subscribed topics:
 Requires (running before this script):
   ros2 launch stretch_core stretch_driver.launch.py broadcast_odom_tf:=True
   ros2 launch stretch_core d405_basic.launch.py
-  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/path/to/map.yaml
+  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/home/hello-robot/16762/team_spidey/mm2026/project/map.yaml
 
 Usage:
   python3 mission_manager.py
