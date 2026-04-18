@@ -25,6 +25,7 @@ from rclpy.callback_groups import ReentrantCallbackGroup
 from geometry_msgs.msg import PoseStamped
 from hello_helpers.hello_misc import HelloNode
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Bool
 import tf2_ros
 import tf2_geometry_msgs
 
@@ -117,6 +118,7 @@ class PreGraspApproach(HelloNode):
             }, blocking=True)
 
             self.get_logger().info('Pre-grasp approach complete!')
+            self.done_pub.publish(Bool(data=True))
             return
 
         # Still need to close the gap — first align heading, then drive forward
@@ -155,6 +157,8 @@ class PreGraspApproach(HelloNode):
 
         self.create_subscription(
             JointState, '/stretch/joint_states', self.joint_states_callback, 1)
+
+        self.done_pub = self.create_publisher(Bool, '/task/pre_grasp_complete', 10)
 
         self.create_subscription(
             PoseStamped, '/gripper_detector/goal_pose', self.goal_callback, 10)
