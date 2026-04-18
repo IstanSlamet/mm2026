@@ -137,13 +137,13 @@ class PreGraspApproach(HelloNode):
                        wait_for_first_pointcloud=False)
         self.callback_group = ReentrantCallbackGroup()
 
-        # Lift low, arm slightly extended, wrist yaw/pitch neutral so the
-        # gripper camera faces forward near floor level for detection.
+        # Lift high so camera can see floor objects clearly, wrist pitched
+        # straight down, arm slightly extended to clear the robot body.
         READY_POSE = {
-            'joint_lift': 0.2,
-            'wrist_extension': 0.05,
+            'joint_lift': 1.0,
+            'wrist_extension': 0.1,
             'joint_wrist_yaw': 0.0,
-            'joint_wrist_pitch': 0.0,
+            'joint_wrist_pitch': -1.0,
             'gripper_aperture': 0.5,
         }
 

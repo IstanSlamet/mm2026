@@ -47,11 +47,12 @@ PYTHON      = sys.executable
 
 
 class MissionState(Enum):
-    IDLE      = auto()
-    PATROL    = auto()
-    PRE_GRASP = auto()
-    GRASP     = auto()
-    DONE      = auto()
+    IDLE        = auto()
+    PATROL      = auto()
+    PRE_GRASP   = auto()
+    GRASP       = auto()
+    RETURN_HOME = auto()
+    DONE        = auto()
 
 
 class MissionManager(Node):
@@ -64,9 +65,10 @@ class MissionManager(Node):
         self._transitioning = False   # guard against concurrent transitions
 
         # Flags set by ROS callbacks, consumed by the state machine tick
-        self._object_found = False
-        self._pre_grasp_done = False
-        self._grasp_done = False
+        self._object_found      = False
+        self._pre_grasp_done    = False
+        self._grasp_done        = False
+        self._return_home_done  = False
 
         # --- subscribers (stage-completion signals) ---
         self.create_subscription(
@@ -78,6 +80,9 @@ class MissionManager(Node):
         self.create_subscription(
             Bool, '/task/grasp_complete',
             self._grasp_done_callback, 10)
+        self.create_subscription(
+            Bool, '/task/return_home_complete',
+            self._return_home_done_callback, 10)
 
         # --- publisher: current state for external monitoring ---
         self.state_pub = self.create_publisher(String, '/mission/state', 10)
@@ -107,6 +112,11 @@ class MissionManager(Node):
             self.get_logger().info('Grasp complete signal received.')
             self._grasp_done = True
 
+    def _return_home_done_callback(self, msg: Bool):
+        if msg.data and self.state == MissionState.RETURN_HOME:
+            self.get_logger().info('Return home complete signal received.')
+            self._return_home_done = True
+
     # ------------------------------------------------------------------
     # State machine tick  (runs every 0.5 s in the ROS timer thread)
     # ------------------------------------------------------------------
@@ -130,6 +140,10 @@ class MissionManager(Node):
 
         elif self.state == MissionState.GRASP and self._grasp_done:
             self._grasp_done = False
+            self._transition(self._enter_return_home)
+
+        elif self.state == MissionState.RETURN_HOME and self._return_home_done:
+            self._return_home_done = False
             self._transition(self._enter_done)
 
     def _transition(self, fn):
@@ -177,6 +191,18 @@ class MissionManager(Node):
         time.sleep(1.0)
 
         self._launch('grasp', 'grasp_objects.py')
+
+    def _enter_return_home(self):
+        self.get_logger().info('=== STATE: RETURN_HOME ===')
+        self.state = MissionState.RETURN_HOME
+
+        # grasp_objects.py already set the travel pose (lift 0.8 m, arm retracted).
+        # Kill the grasp node and detector, then navigate back.
+        self._kill('grasp')
+        self._kill('gripper_detector')
+        time.sleep(1.0)
+
+        self._launch('return_home', 'return_home.py')
 
     def _enter_done(self):
         self.get_logger().info('=== STATE: DONE — Mission complete ===')

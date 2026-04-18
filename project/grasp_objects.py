@@ -230,8 +230,13 @@ class IKTargetFollowing(HelloNode):
 
             self.move_to_pose({'joint_lift': current_lift + 0.15}, blocking=True)
 
-            # Retract arm (bring it home!)
-            self.move_to_pose({'wrist_extension': 0.0}, blocking=True)
+            # Set travel pose: lift at 0.8 m, arm fully retracted so the
+            # robot can drive safely back to the home location.
+            self.move_to_pose({
+                'wrist_extension': 0.0,
+                'joint_lift': 0.8,
+                'joint_wrist_pitch': 0.0,
+            }, blocking=True)
 
             self.grasp_done_pub.publish(Bool(data=True))
         else:
@@ -288,9 +293,19 @@ class IKTargetFollowing(HelloNode):
         self.callback_group = ReentrantCallbackGroup()
         self.joint_states_subscriber = self.create_subscription(JointState, '/stretch/joint_states', callback=self.joint_states_callback, qos_profile=1)
 
-        self.stow_the_robot()
-        self.move_to_ready_pose()
-        print("At Ready Pose")
+        # Do NOT stow — pre_grasp_approach already positioned the robot with
+        # lift high and camera looking down.  Just ensure position mode and
+        # confirm the grasp-start pose: lift at max, camera facing down,
+        # arm slightly extended so the gripper camera sees the object clearly.
+        self.switch_to_position_mode()
+        self.move_to_pose({
+            'joint_lift': 1.0,
+            'wrist_extension': 0.1,
+            'joint_wrist_yaw': 0.0,
+            'joint_wrist_pitch': -1.0,
+            'gripper_aperture': 0.5,
+        }, blocking=True)
+        print("At grasp-start pose")
 
 
         # TODO: ------------- start --------------
