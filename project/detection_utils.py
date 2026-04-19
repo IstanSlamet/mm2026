@@ -60,6 +60,20 @@ def parse_results(results):
     return detections
 
 
+def mask_median_depth(mask_polygon, depth_image, min_mm=70, max_mm=500):
+    """
+    Rasterize the segmentation mask polygon and return the median depth (mm)
+    over all valid pixels inside it.  Returns None if no valid depth pixels exist.
+    """
+    mask_img = np.zeros(depth_image.shape[:2], dtype=np.uint8)
+    cv2.fillPoly(mask_img, [mask_polygon], 255)
+    depths = depth_image[mask_img > 0]
+    valid = depths[(depths >= min_mm) & (depths <= max_mm)]
+    if len(valid) == 0:
+        return None
+    return int(np.median(valid))
+
+
 def pixel_to_3d(xy_pix, z_depth, camera_info):
 
     camera_mat = np.reshape(camera_info.k, (3, 3))

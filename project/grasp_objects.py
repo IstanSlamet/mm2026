@@ -211,9 +211,12 @@ class IKTargetFollowing(HelloNode):
 
         # Reach for the object
         
-        waypoint_orient = ikpy.utils.geometry.rpy_matrix(0.0, 0.0, 0.0) # [roll, pitch, yaw] 
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
+
+        # Use current FK orientation (wrist already pointing down from grasp-start pose)
+        # rather than identity which would be parallel to the floor.
+        waypoint_orient = ik.chain.forward_kinematics(q_init)[:3, :3]
 
         q_soln = ik.get_grasp_goal(goal_pos, waypoint_orient, q_init)
 

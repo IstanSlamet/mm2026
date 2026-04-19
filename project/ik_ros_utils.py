@@ -160,7 +160,7 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     #   moved to it's own function without the final move_to_configuration() call for convenience in this lab
 
     
-    q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='all', initial_position=q_init)
+    q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='Z', initial_position=q_init)
     
     # print('Solution:', q_soln)
     print("Solution Found")

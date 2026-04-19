@@ -162,22 +162,25 @@ class GripperObjectDetector(Node):
 
     def _get_goal_pose(self, detections, target_idx: int = 0) -> PoseStamped | None:
         """
-        Project the 2D centroid of the best detection to 3D using the depth
-        value at that pixel and return it as a PoseStamped.
+        Project the 2D centroid of the best detection to 3D using the median
+        depth over all segmentation-mask pixels (more robust than a single pixel).
         """
         if not detections:
             return None
 
-        centroid = detections[target_idx]['centroid']  # (x, y) pixel coords
-        x_pix, y_pix = centroid
+        detection = detections[target_idx]
+        centroid   = detection['centroid']   # (x, y) — used for x/y 3D projection
+        mask_poly  = detection['mask']       # Nx2 polygon in pixel coords
 
-        h, w = self.latest_depth.shape[:2]
-        y_idx = min(max(int(y_pix), 0), h - 1)
-        x_idx = min(max(int(x_pix), 0), w - 1)
-
-        depth_val = self.latest_depth[y_idx, x_idx]
-        if depth_val == 0:
+        depth_val = detection_utils.mask_median_depth(
+            mask_poly, self.latest_depth, min_mm=70, max_mm=500)
+        if depth_val is None:
             return None
+
+        x_pix, y_pix = centroid
+        h, w = self.latest_depth.shape[:2]
+        x_idx = min(max(int(x_pix), 0), w - 1)
+        y_idx = min(max(int(y_pix), 0), h - 1)
 
         goal_xyz = detection_utils.pixel_to_3d(
             (x_idx, y_idx), depth_val, self.latest_cam_info)
