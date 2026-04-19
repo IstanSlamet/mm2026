@@ -145,8 +145,13 @@ class IKTargetFollowing(HelloNode):
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
 
+        # Constrain Z-axis to stay pointing down — prevents IK from lowering the lift
+        # to floor level just to satisfy position-only constraints.
+        current_z = waypoint_orient[:, 2]
         q_soln = ik.chain.inverse_kinematics(
                 waypoint_pos,
+                current_z,
+                orientation_mode='Z',
                 initial_position=q_init)
         err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
         
