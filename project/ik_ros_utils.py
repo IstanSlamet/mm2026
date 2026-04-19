@@ -190,8 +190,8 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     #                                         initial_position=q_init,
     #                                         regularization_parameter=0.1)
     
-    q_soln = chain.inverse_kinematics(target_point, 
-                                      target_orientation, 
+    q_soln = chain.inverse_kinematics(target_point, GRASP_DOWN_ORIENT,
+                                    #   target_orientation, 
                                       orientation_mode='all', 
                                       initial_position=q_init, 
                                       active_links_mask=FLOOR_GRASP_MASK)
