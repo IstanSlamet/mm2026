@@ -91,6 +91,25 @@ def get_modified_urdf(base_rot_limit=np.pi, base_trans_limit=1.0,
 new_urdf_path = get_modified_urdf()
 chain = ikpy.chain.Chain.from_urdf_file(new_urdf_path)
 
+FLOOR_GRASP_MASK = [
+    False,  # 0  base_link (fixed)
+    False,  # 1  joint_base_rotation   ← frozen
+    True,   # 2  joint_base_translation 
+    False,  # 3  joint_mast (fixed)
+    True,   # 4  joint_lift
+    False,  # 5  joint_arm_l4 (fixed)
+    True,   # 6  joint_arm_l3
+    True,   # 7  joint_arm_l2
+    True,   # 8  joint_arm_l1
+    True,   # 9  joint_arm_l0
+    False,  # 10 joint_wrist_yaw       ← frozen
+    False,  # 11 joint_wrist_yaw_bottom (fixed)
+    False,  # 12 joint_wrist_pitch     ← frozen
+    False,  # 13 joint_wrist_roll      ← frozen
+    False,  # 14 joint_gripper_s3_body (fixed)
+    False,  # 15 joint_grasp_center (fixed)
+]
+
 # Tight-base chain for grasping — forces IK to use arm/lift, not base rotation
 grasp_chain = ikpy.chain.Chain.from_urdf_file(
     get_modified_urdf(base_rot_limit=0.15, base_trans_limit=0.15,
@@ -166,10 +185,16 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     # orientation_mode='all' fully constrains all 3 wrist axes to the target rotation.
     # GRASP_DOWN_ORIENT is precomputed from FK at wrist_pitch=-π/2 so the gripper
     # always faces straight down regardless of the current robot pose.
-    q_soln = grasp_chain.inverse_kinematics(target_point, GRASP_DOWN_ORIENT,
-                                            orientation_mode='all',
-                                            initial_position=q_init,
-                                            regularization_parameter=0.1)
+    # q_soln = grasp_chain.inverse_kinematics(target_point, GRASP_DOWN_ORIENT,
+    #                                         orientation_mode='all',
+    #                                         initial_position=q_init,
+    #                                         regularization_parameter=0.1)
+    
+    q_soln = chain.inverse_kinematics(target_point, 
+                                      target_orientation, 
+                                      orientation_mode='all', 
+                                      initial_position=q_init, 
+                                      active_links_mask=FLOOR_GRASP_MASK)
 
     print("Solution Found")
 

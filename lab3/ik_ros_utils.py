@@ -100,24 +100,6 @@ def get_modified_urdf():
 new_urdf_path = get_modified_urdf()
 chain = ikpy.chain.Chain.from_urdf_file(new_urdf_path)
 
-FLOOR_GRASP_MASK = [
-    False,  # 0  base_link (fixed)
-    False,  # 1  joint_base_rotation   ← frozen
-    True,   # 2  joint_base_translation 
-    False,  # 3  joint_mast (fixed)
-    True,   # 4  joint_lift
-    False,  # 5  joint_arm_l4 (fixed)
-    True,   # 6  joint_arm_l3
-    True,   # 7  joint_arm_l2
-    True,   # 8  joint_arm_l1
-    True,   # 9  joint_arm_l0
-    False,  # 10 joint_wrist_yaw       ← frozen
-    False,  # 11 joint_wrist_yaw_bottom (fixed)
-    False,  # 12 joint_wrist_pitch     ← frozen
-    False,  # 13 joint_wrist_roll      ← frozen
-    False,  # 14 joint_gripper_s3_body (fixed)
-    False,  # 15 joint_grasp_center (fixed)
-]
 
 for link in chain.links:
     print(f"* Link Name: {link.name}, Type: {link.joint_type}")
@@ -179,7 +161,7 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     #   moved to it's own function without the final move_to_configuration() call for convenience in this lab
 
     
-    q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='all', initial_position=q_init, active_links_mask=FLOOR_GRASP_MASK)
+    q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='all', initial_position=q_init)
     
     # print('Solution:', q_soln)
     print("Solution Found")
