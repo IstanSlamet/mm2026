@@ -20,6 +20,9 @@ Requires (start in this order before running this script):
   ros2 launch stretch_core d405_basic.launch.py
 """
 
+import os
+import subprocess
+import sys
 import threading
 import time
 from copy import deepcopy
@@ -108,6 +111,11 @@ def make_pose(navigator: BasicNavigator, x, y, qz, qw) -> PoseStamped:
 # ---------------------------------------------------------------------------
 
 def main():
+    # Set arm to patrol pose (lift 20 cm, gripper forward) before switching to
+    # navigation mode — must run in position mode, so do it before rclpy.init().
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    subprocess.run([sys.executable, os.path.join(_dir, 'set_patrol_pose.py')])
+
     rclpy.init()
 
     navigator = BasicNavigator()

@@ -298,12 +298,14 @@ class IKTargetFollowing(HelloNode):
         # confirm the grasp-start pose: lift at max, camera facing down,
         # arm slightly extended so the gripper camera sees the object clearly.
         self.switch_to_position_mode()
+        # D405 range is 70–500 mm. At lift=1.0 m the floor is ~1 m away — out of range.
+        # Keep lift at ~0.4 m and extend arm so the camera is ~400 mm above the ball.
         self.move_to_pose({
-            'joint_lift': 1.0,
-            'wrist_extension': 0.1,
-            'joint_wrist_yaw': 0.0,
-            'joint_wrist_pitch': -1.0,
-            'gripper_aperture': 0.5,
+            'joint_lift':        0.4,
+            'wrist_extension':   0.4,
+            'joint_wrist_yaw':   0.0,
+            'joint_wrist_pitch': -0.9,
+            'gripper_aperture':  0.5,
         }, blocking=True)
         print("At grasp-start pose")
 
