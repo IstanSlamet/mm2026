@@ -141,19 +141,17 @@ class IKTargetFollowing(HelloNode):
         
 ###################
 
-        waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
+        waypoint_pos, _ = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
 
-        # Constrain Z-axis to stay pointing down — prevents IK from lowering the lift
-        # to floor level just to satisfy position-only constraints.
-        current_z = waypoint_orient[:, 2]
-        q_soln = ik.chain.inverse_kinematics(
+        q_soln = ik.grasp_chain.inverse_kinematics(
                 waypoint_pos,
-                current_z,
-                orientation_mode='Z',
-                initial_position=q_init)
-        err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
+                ik.GRASP_DOWN_ORIENT,
+                orientation_mode='all',
+                initial_position=q_init,
+                regularization_parameter=0.1)
+        err = np.linalg.norm(ik.grasp_chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
         
         if not np.isclose(err, 0.0, atol=1e-2):
             print(f"No solution")
@@ -219,10 +217,7 @@ class IKTargetFollowing(HelloNode):
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
 
-        # Use current FK orientation (wrist already pointing down from grasp-start pose)
-        # rather than identity which would be parallel to the floor.
         waypoint_orient = ik.chain.forward_kinematics(q_init)[:3, :3]
-
         q_soln = ik.get_grasp_goal(goal_pos, waypoint_orient, q_init)
 
         if q_soln is not None:
@@ -309,10 +304,10 @@ class IKTargetFollowing(HelloNode):
         # D405 range is 70–500 mm. At lift=1.0 m the floor is ~1 m away — out of range.
         # Keep lift at ~0.4 m and extend arm so the camera is ~400 mm above the ball.
         self.move_to_pose({
-            'joint_lift':        0.4,
+            'joint_lift':        0.8,
             'wrist_extension':   0.4,
             'joint_wrist_yaw':   0.0,
-            'joint_wrist_pitch': -0.9,
+            'joint_wrist_pitch': -np.pi/2,
             'gripper_aperture':  0.5,
         }, blocking=True)
         print("At grasp-start pose")
