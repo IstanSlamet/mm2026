@@ -190,15 +190,13 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     #                                         initial_position=q_init,
     #                                         regularization_parameter=0.1)
     
-    q_soln = grasp_chain.inverse_kinematics(target_point, GRASP_DOWN_ORIENT,
-                                    #   target_orientation, 
-                                      orientation_mode='all', 
-                                      initial_position=q_init, 
+    q_soln = chain.inverse_kinematics(target_point,
+                                      initial_position=q_init,
                                       active_links_mask=FLOOR_GRASP_MASK)
 
     print("Solution Found")
 
-    err = np.linalg.norm(grasp_chain.forward_kinematics(q_soln)[:3, 3] - target_point)
+    err = np.linalg.norm(chain.forward_kinematics(q_soln)[:3, 3] - target_point)
     if not np.isclose(err, 0.0, atol=1e-2):
         print("IKPy did not find a valid solution")
         return

@@ -145,13 +145,11 @@ class IKTargetFollowing(HelloNode):
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
 
-        q_soln = ik.grasp_chain.inverse_kinematics(
+        q_soln = ik.chain.inverse_kinematics(
                 waypoint_pos,
-                ik.GRASP_DOWN_ORIENT,
-                orientation_mode='all',
                 initial_position=q_init,
-                regularization_parameter=0.1)
-        err = np.linalg.norm(ik.grasp_chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
+                active_links_mask=ik.FLOOR_GRASP_MASK)
+        err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
         
         if not np.isclose(err, 0.0, atol=1e-2):
             print(f"No solution")
