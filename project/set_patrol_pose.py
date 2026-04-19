@@ -7,15 +7,17 @@ so the D405 camera looks at the floor ahead of the robot during patrol.
 
 import rclpy
 from hello_helpers.hello_misc import HelloNode
+import numpy as np
+
 
 PATROL_POSE = {
-    'joint_lift':        0.2,
-    'wrist_extension':   0.05,
-    'joint_wrist_yaw':   0.0,
-    'joint_wrist_pitch': 0.0,   # forward-facing, NOT pointing down
-    'gripper_aperture':  0.5,
+    'joint_lift': 0.2,
+    'wrist_extension': 0.1,
+    'joint_wrist_yaw': np.pi/2,
+    'joint_wrist_pitch': 0.0,
+    'joint_wrist_roll': 0.0,
+    'gripper_aperture': 0.5,
 }
-
 
 class PatrolPoseSetter(HelloNode):
     def main(self):
