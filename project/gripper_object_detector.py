@@ -173,7 +173,7 @@ class GripperObjectDetector(Node):
         mask_poly  = detection['mask']       # Nx2 polygon in pixel coords
 
         depth_val = detection_utils.mask_median_depth(
-            mask_poly, self.latest_depth, min_mm=70, max_mm=500)
+            mask_poly, self.latest_depth, min_mm=70, max_mm=2000)
         if depth_val is None:
             return None
 
