@@ -15,8 +15,8 @@ Published topics:
       Pose of the found object — consumed by the pre-grasp approach stage.
 
 Requires (start in this order before running this script):
-  ros2 launch stretch_core stretch_driver.launch.py
-  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/path/to/your_map.yaml
+  ros2 launch stretch_core stretch_driver.launch.py broadcast_odom_tf:=True
+  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/home/hello-robot/16762/teamSpidey/mm2026/fork/mm2026/project/map.yaml
   ros2 launch stretch_core d405_basic.launch.py
 """
 
