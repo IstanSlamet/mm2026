@@ -104,58 +104,74 @@ class IKTargetFollowing(HelloNode):
         return gripper_transformed
 
     def goal_callback(self, goal_msg):
-        # print(msg)
-        # self.get_logger().info(f'Received goal pose: {msg.pose}')
-        #test_pose = {'joint_lift': 0.6}
-        #self.move_to_pose(test_pose, blocking=False)
+        print(f"[goal_callback] Received goal. is_grasping={self.is_grasping}")
         if self.is_grasping is True:
               return
-        
+
         try:
             goal_transformed = self.get_goal_pose_in_base_frame(goal_msg)
+            if goal_transformed is None:
+                print("[goal_callback] ERROR: get_goal_pose_in_base_frame returned None")
+                return
             gripper_transformed = self.get_gripper_pose_in_base_frame()
+            if gripper_transformed is None:
+                print("[goal_callback] ERROR: get_gripper_pose_in_base_frame returned None")
+                return
 
             goal_pos = ik.get_xyz_from_msg(goal_transformed)
             gripper_pos = ik.get_xyz_from_msg(gripper_transformed)
+            print(f"[goal_callback] goal_pos={np.round(goal_pos, 3)}  gripper_pos={np.round(gripper_pos, 3)}")
 
             # --------- DEBUG LINES ---------
-            # Update the timestamp to 'now' so RViz renders it happily
             goal_transformed.header.stamp = self.get_clock().now().to_msg()
             self.debug_goal_pub.publish(goal_transformed)
             # -----------------------------------------
-        except:
-            print("Error getting transforms")
+        except Exception as e:
+            print(f"[goal_callback] Exception getting transforms: {e}")
             return
 
         # TODO: ------------- start --------------
         # fill with your response
-        #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`, 
+        #   use the same functions you used for IK in Lab 2, now in `ik_ros_utils.py`,
         #   to move the robot to the transformed goal point.
-        
+
         # Part 2 changes: if the object is close enough to grab, grab it
         distance = np.linalg.norm(goal_pos - gripper_pos)
+        print(f"[goal_callback] distance to goal={distance:.4f}  (grasp threshold=0.25)")
         if distance < 0.25:
+            print("[goal_callback] Close enough — executing grasp")
             self.is_grasping = True
             self.execute_grasp(goal_pos)
             return
-        
+
 ###################
 
         waypoint_pos, waypoint_orient = self.compute_waypoint_to_goal(goal_pos, gripper_pos)
+        print(f"[goal_callback] waypoint_pos={np.round(waypoint_pos, 3)}")
         with self.joint_states_lock:
             q_init = ik.get_current_configuration(self.joint_state)
+
+        if q_init is None:
+            print("[goal_callback] ERROR: joint_state not yet received — q_init is None")
+            return
+        print(f"[goal_callback] q_init obtained. Calling IK...")
 
         q_soln = ik.chain.inverse_kinematics(
                 waypoint_pos,
                 initial_position=q_init)
         err = np.linalg.norm(ik.chain.forward_kinematics(q_soln)[:3, 3] - waypoint_pos)
-        
+        print(f"[goal_callback] IK error={err:.6f}  (tolerance=0.01)")
+
         if not np.isclose(err, 0.0, atol=1e-2):
-            print(f"No solution")
+            print(f"[goal_callback] IK FAILED — no valid solution (err={err:.4f})")
             q_soln = None
+        else:
+            print("[goal_callback] IK succeeded")
         ik.print_q(q_soln)
         if q_soln is not None:
+            print("[goal_callback] Calling move_to_configuration...")
             ik.move_to_configuration(self, q_soln)
+            print("[goal_callback] move_to_configuration returned")
         return
 
 #########################
@@ -215,7 +231,6 @@ class IKTargetFollowing(HelloNode):
             q_init = ik.get_current_configuration(self.joint_state)
 
         # Use current FK orientation (wrist already pointing down from grasp-start pose)
-        # rather than identity which would be parallel to the floor.
         waypoint_orient = ik.chain.forward_kinematics(q_init)[:3, :3]
 
         q_soln = ik.get_grasp_goal(goal_pos, waypoint_orient, q_init)
@@ -304,14 +319,15 @@ class IKTargetFollowing(HelloNode):
         # D405 range is 70–500 mm. At lift=1.0 m the floor is ~1 m away — out of range.
         # Keep lift at ~0.4 m and extend arm so the camera is ~400 mm above the ball.
         self.move_to_pose({
-            'joint_lift':        0.4,
-            'wrist_extension':   0.4,
+            'joint_lift':        0.3,
+            'wrist_extension':   0.1,   
             'joint_wrist_yaw':   0.0,
-            'joint_wrist_pitch': -0.9,
+            'joint_wrist_pitch': -np.pi/6,
+            'joint_wrist_roll': 0.0,
             'gripper_aperture':  0.5,
         }, blocking=True)
         print("At grasp-start pose")
-
+        print("[main] Setting up subscribers and waiting for goal poses on /gripper_detector/goal_pose ...")
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)

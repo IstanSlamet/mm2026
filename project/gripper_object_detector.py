@@ -92,7 +92,7 @@ class GripperObjectDetector(Node):
         self.synchronizer = message_filters.ApproximateTimeSynchronizer(
             [color_sub, depth_sub, cam_info_sub],
             queue_size=10,
-            slop=0.01,
+            slop=0.1,
         )
         self.synchronizer.registerCallback(self._image_callback)
 
@@ -113,6 +113,8 @@ class GripperObjectDetector(Node):
                         color_msg: Image,
                         depth_msg: Image,
                         cam_info_msg: CameraInfo):
+        if self.latest_color is None:
+            print("[detector] First synchronized frame received!")
         self.latest_color    = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='passthrough')
         self.latest_depth    = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
         self.latest_cam_info = cam_info_msg
@@ -173,8 +175,10 @@ class GripperObjectDetector(Node):
         mask_poly  = detection['mask']       # Nx2 polygon in pixel coords
 
         depth_val = detection_utils.mask_median_depth(
-            mask_poly, self.latest_depth, min_mm=70, max_mm=500)
+            mask_poly, self.latest_depth, min_mm=70, max_mm=2000)
+        print(f"[detector] depth_val={depth_val} mm  centroid={centroid}")
         if depth_val is None:
+            print("[detector] depth_val is None — no valid depth pixels in mask")
             return None
 
         x_pix, y_pix = centroid

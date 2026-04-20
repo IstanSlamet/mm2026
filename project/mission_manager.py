@@ -23,7 +23,14 @@ Subscribed topics:
 Requires (running before this script):
   ros2 launch stretch_core stretch_driver.launch.py broadcast_odom_tf:=True
   ros2 launch stretch_core d405_basic.launch.py
+  ros2 service call /switch_to_navigation_mode std_srvs/srv/Trigger "{}"
+  
   ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/home/hello-robot/16762/team_spidey/mm2026/project/map.yaml
+  
+  
+  OR for 3160:
+  ros2 launch stretch_nav2 navigation.launch.py use_sim_time:=False map:=/home/hello-robot/16762/teamSpidey/mm2026/fork/mm2026/project/map.yaml
+
 
 Usage:
   python3 mission_manager.py

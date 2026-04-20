@@ -69,6 +69,7 @@ def mask_median_depth(mask_polygon, depth_image, min_mm=70, max_mm=500):
     cv2.fillPoly(mask_img, [mask_polygon], 255)
     depths = depth_image[mask_img > 0]
     valid = depths[(depths >= min_mm) & (depths <= max_mm)]
+    print(f"[depth] mask pixels={len(depths)}  valid={len(valid)}  raw_median={int(np.median(depths)) if len(depths) > 0 else 'N/A'} mm")
     if len(valid) == 0:
         return None
     return int(np.median(valid))

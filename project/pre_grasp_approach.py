@@ -30,7 +30,7 @@ import tf2_ros
 import tf2_geometry_msgs
 import numpy as np
 
-APPROACH_DISTANCE = 0.85   # meters — desired standoff from object
+APPROACH_DISTANCE = 1.0   # meters — desired standoff from object
 DISTANCE_THRESHOLD = 0.05  # meters — tolerance to consider "arrived"
 ANGLE_THRESHOLD = 0.05     # radians — tolerance to consider heading aligned
 MAX_TRANSLATE_STEP = 0.10  # meters — max base translation per step
@@ -146,6 +146,7 @@ class PreGraspApproach(HelloNode):
             'wrist_extension': 0.1,
             'joint_wrist_yaw': np.pi/2,
             'joint_wrist_pitch': 0.0,
+            'joint_wrist_roll': 0.0,
             'gripper_aperture': 0.5,
         }
 

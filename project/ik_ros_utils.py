@@ -65,7 +65,7 @@ def get_modified_urdf():
                                         joint_type='revolute',
                                         axis=np.array([0.0, 0.0, 1.0]),
                                         origin=np.eye(4, dtype=np.float64),
-                                        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-np.pi, upper=np.pi))
+                                        limit=urdfpy.JointLimit(effort=100.0, velocity=1.0, lower=-0.001, upper=0.001))
     modified_urdf._joints.append(joint_base_rotation)
     link_base_rotation = urdfpy.Link(name='link_base_rotation',
                                         inertial=None,
@@ -160,7 +160,7 @@ def get_grasp_goal(target_point, target_orientation, q_init):
     #   moved to it's own function without the final move_to_configuration() call for convenience in this lab
 
     
-    q_soln = chain.inverse_kinematics(target_point, target_orientation, orientation_mode='Z', initial_position=q_init)
+    q_soln = chain.inverse_kinematics(target_point, target_orientation[:, 2], orientation_mode='Z', initial_position=q_init)
     
     # print('Solution:', q_soln)
     print("Solution Found")
