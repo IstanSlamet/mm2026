@@ -36,10 +36,8 @@ import time
 import rclpy
 from geometry_msgs.msg import PoseStamped
 from hello_helpers.hello_misc import HelloNode
-from rclpy.executors import MultiThreadedExecutor
 from std_msgs.msg import Bool, String
 from stretch_nav2.robot_navigator import BasicNavigator, TaskResult
-from rclpy.duration import Duration
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +45,8 @@ from rclpy.duration import Duration
 # ---------------------------------------------------------------------------
 
 TABLE_X  = -0.15255
-TABLE_Y  = -1.45
-TABLE_QZ =  0.77133
+TABLE_Y  = -1.38
+TABLE_QZ =  1.0
 TABLE_QW =  0.63644
 
 # ---------------------------------------------------------------------------
@@ -57,7 +55,7 @@ TABLE_QW =  0.63644
 # ---------------------------------------------------------------------------
 
 RELEASE_POSE = {
-    'joint_lift':        0.80,
+    'joint_lift':        0.8,
     'wrist_extension':   0.3,
     'joint_wrist_yaw':   0.03004045709609381,
     'joint_wrist_pitch': -0.06749515466696822,
@@ -107,6 +105,7 @@ class ReturnToTable(HelloNode):
     def _run_return(self):
         self.return_active = True
         try:
+            self.switch_to_navigation_mode()
             # 1. Navigate to table
             success = self._navigate_to_table()
             if not success:
@@ -117,23 +116,40 @@ class ReturnToTable(HelloNode):
             # Small settle pause after navigation before moving the arm
             time.sleep(0.8)
 
-            # 2. Move arm to release configuration
-            self.get_logger().info('Moving arm to release pose.')
-            # Move lift and extension first so the arm clears the robot body,
-            # then fine-tune wrist angles.
+            # Must be in position mode for individual joint commands to work
+            self.switch_to_position_mode()
+
+            # 2. Move arm to release configuration — order matters:
+            #    (a) lift mast to table height first
+            #    (b) extend arm out over the table
+            #    (c) set wrist angles one at a time
+            self.get_logger().info('Lifting mast.')
             self.move_to_pose(
-                {
-                    'joint_lift':      RELEASE_POSE['joint_lift'],
-                    'wrist_extension': RELEASE_POSE['wrist_extension'],
-                },
+                {'joint_lift': RELEASE_POSE['joint_lift']},
                 blocking=True,
             )
+
+            self.get_logger().info('Extending arm.')
             self.move_to_pose(
-                {
-                    'joint_wrist_yaw':   RELEASE_POSE['joint_wrist_yaw'],
-                    'joint_wrist_pitch': RELEASE_POSE['joint_wrist_pitch'],
-                    'joint_wrist_roll':  RELEASE_POSE['joint_wrist_roll'],
-                },
+                {'wrist_extension': RELEASE_POSE['wrist_extension']},
+                blocking=True,
+            )
+
+            self.get_logger().info('Setting wrist yaw.')
+            self.move_to_pose(
+                {'joint_wrist_yaw': RELEASE_POSE['joint_wrist_yaw']},
+                blocking=True,
+            )
+
+            self.get_logger().info('Setting wrist pitch.')
+            self.move_to_pose(
+                {'joint_wrist_pitch': RELEASE_POSE['joint_wrist_pitch']},
+                blocking=True,
+            )
+
+            self.get_logger().info('Setting wrist roll.')
+            self.move_to_pose(
+                {'joint_wrist_roll': RELEASE_POSE['joint_wrist_roll']},
                 blocking=True,
             )
 
@@ -142,7 +158,7 @@ class ReturnToTable(HelloNode):
             self.move_to_pose({'gripper_aperture': GRIPPER_OPEN}, blocking=True)
 
             # Brief pause so object settles before we retract
-            time.sleep(0.5)
+            time.sleep(1.5)
 
             # 4. Stow arm back to safe travel pose
             self.get_logger().info('Stowing arm.')
@@ -176,7 +192,7 @@ class ReturnToTable(HelloNode):
         nav_start = self.get_clock().now()
 
         while not self.navigator.isTaskComplete():
-            rclpy.spin_once(self, timeout_sec=POLL_PERIOD_SEC)
+            time.sleep(POLL_PERIOD_SEC)
 
             elapsed = (self.get_clock().now() - nav_start).nanoseconds / 1e9
             if elapsed > NAV_TIMEOUT_SEC:
