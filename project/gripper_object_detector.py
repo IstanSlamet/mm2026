@@ -3,12 +3,7 @@
 Gripper Object Detector — D405 gripper-camera YOLO-E detection node for Stretch 3.
 
 Subscribes to the wrist-mounted D405 RGB-D camera, runs YOLO-E open-vocabulary
-detection for the target objects listed in object_queries.yaml, and publishes the
-3D pose of the best detection together with a boolean found/not-found flag.
-
-Intended for the visual-servoing phase once the patrol detector has located the
-object and the robot has approached it: the gripper camera looks down at the object
-on the floor and provides close-range localisation to guide the final grasp.
+detection for the target objects, and publishes the 3D pose of the best detection.
 
 How to run:
   # Terminal 1
@@ -17,34 +12,21 @@ How to run:
   ros2 launch stretch_core d405_basic.launch.py
   # Terminal 3
   python3 gripper_object_detector.py
-
-Published topics:
-  /gripper_detector/goal_pose    (geometry_msgs/PoseStamped)
-      3D centroid of the detected object in the gripper camera optical frame.
-  /gripper_detector/object_found (std_msgs/Bool)
-      True each detection cycle the target is visible, False otherwise.
-
-Subscribed topics:
-  /gripper_camera/color/image_rect_raw         (sensor_msgs/Image)
-  /gripper_camera/aligned_depth_to_color/image_raw (sensor_msgs/Image)
-  /gripper_camera/color/camera_info            (sensor_msgs/CameraInfo)
+  # Terminal 4
+  python3 text_input.py
 """
 
 import os
-
 import rclpy
 import yaml
 from cv_bridge import CvBridge
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
 from sensor_msgs.msg import CameraInfo, Image
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, String
 from ultralytics import YOLO
 import message_filters
-
 import detection_utils
-from std_msgs.msg import Bool, String
-
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -56,10 +38,6 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'object_q
 # Detection timer period — 2 Hz gives the visual-servoing loop time to act
 DETECTION_PERIOD = 0.5  # seconds
 
-# The D405 is mounted flush in the gripper with no rotation offset, so no
-# image rotation is needed (unlike the head D435i which is 90° CW).
-
-
 # ---------------------------------------------------------------------------
 # Node
 # ---------------------------------------------------------------------------
@@ -68,18 +46,19 @@ class GripperObjectDetector(Node):
     def __init__(self, obj_queries: list[str]):
         super().__init__('gripper_object_detector')
 
-        self.visualize = False
+        self.visualize = True  # Set to True for testing vision-only performance
 
         # --- YOLO-E model ---
         self.model = YOLO(MODEL_PATH)
+        # Initial set of classes from YAML (default behavior)
         self.model.set_classes(obj_queries)
-        self.get_logger().info(f'Targets: {obj_queries}')
+        self.get_logger().info(f'Initial Targets from YAML: {obj_queries}')
 
         # --- camera state ---
         self.bridge = CvBridge()
-        self.latest_color    = None   # color image (no rotation needed for D405)
-        self.latest_depth    = None   # depth image
-        self.latest_cam_info = None   # camera intrinsics
+        self.latest_color    = None   
+        self.latest_depth    = None   
+        self.latest_cam_info = None   
         self.latest_stamp    = None
 
         # --- synchronized RGB-D + CameraInfo subscribers ---
@@ -103,28 +82,36 @@ class GripperObjectDetector(Node):
         self.found_pub = self.create_publisher(
             Bool, '/gripper_detector/object_found', 10)
 
-        # --- detection timer ---
-        self.create_timer(DETECTION_PERIOD, self._detect_callback)
-
-        #---target choice---
+        # --- subscribers for text-input command ---
         self.target_sub = self.create_subscription(
             String, 
             '/task/target_object', 
             self._target_callback, 
             10
         )
-        self.current_target = None # Start with no target
+        self.current_target = None # Start with no target; wait for text_input.py
+
+        # --- detection timer ---
+        self.create_timer(DETECTION_PERIOD, self._detect_callback)
+
+    # ------------------------------------------------------------------
+    # Target command callback
+    # ------------------------------------------------------------------
+    def _target_callback(self, msg):
+        new_target = msg.data
+        self.get_logger().info(f'RECEIVED COMMAND: "{new_target}"')
+        
+        # Dynamically update the YOLO-E open-vocabulary classes for just this object
+        self.model.set_classes([new_target])
+        self.current_target = new_target
+        self.get_logger().info(f'YOLO-E now searching specifically for: "{new_target}"')
 
     # ------------------------------------------------------------------
     # Camera callback
     # ------------------------------------------------------------------
-
-    def _image_callback(self,
-                        color_msg: Image,
-                        depth_msg: Image,
-                        cam_info_msg: CameraInfo):
+    def _image_callback(self, color_msg, depth_msg, cam_info_msg):
         if self.latest_color is None:
-            print("[detector] First synchronized frame received!")
+            self.get_logger().info("[detector] First synchronized frame received!")
         self.latest_color    = self.bridge.imgmsg_to_cv2(color_msg, desired_encoding='passthrough')
         self.latest_depth    = self.bridge.imgmsg_to_cv2(depth_msg, desired_encoding='passthrough')
         self.latest_cam_info = cam_info_msg
@@ -133,15 +120,11 @@ class GripperObjectDetector(Node):
     # ------------------------------------------------------------------
     # Detection timer callback
     # ------------------------------------------------------------------
-
     def _detect_callback(self):
+        # Only run if we have images AND a target string has been entered
         if self.latest_color is None or self.current_target is None:
-            self.get_logger().info('Waiting for camera frames and target text...', 
-                               throttle_duration_sec=5)
-            return
-
-        if self.latest_color is None:
-            self.get_logger().info('Waiting for camera frames...', throttle_duration_sec=5)
+            self.get_logger().info('Waiting for camera frames and target text command...', 
+                               throttle_duration_sec=10)
             return
 
         try:
@@ -162,49 +145,32 @@ class GripperObjectDetector(Node):
         pose_msg = self._get_goal_pose(detections)
 
         if pose_msg is None:
-            self.get_logger().info('Object not detected.', throttle_duration_sec=2)
+            self.get_logger().info(f'Target "{self.current_target}" not in view.', throttle_duration_sec=2)
             self.found_pub.publish(Bool(data=False))
             return
 
         try:
             self.found_pub.publish(Bool(data=True))
             self.goal_pub.publish(pose_msg)
-        except Exception:
-            return
-        self.get_logger().info('---------- Published Goal Pose ----------')
-
-    # ------------------------------------------------------------------
-    # Target callback
-    # ------------------------------------------------------------------
-    def _target_callback(self, msg):
-        new_target = msg.data
-        self.get_logger().info(f'Updating YOLO-E classes to: "{new_target}"')
-        
-        # This dynamically updates the open-vocabulary classes for the YOLO-E model
-        self.model.set_classes([new_target])
-        self.current_target = new_target
+            self.get_logger().info(f'Goal pose published for: {self.current_target}')
+        except Exception as e:
+            self.get_logger().error(f"Publishing error: {e}")
 
     # ------------------------------------------------------------------
     # 3D projection
     # ------------------------------------------------------------------
-
     def _get_goal_pose(self, detections, target_idx: int = 0) -> PoseStamped | None:
-        """
-        Project the 2D centroid of the best detection to 3D using the median
-        depth over all segmentation-mask pixels (more robust than a single pixel).
-        """
         if not detections:
             return None
 
         detection = detections[target_idx]
-        centroid   = detection['centroid']   # (x, y) — used for x/y 3D projection
-        mask_poly  = detection['mask']       # Nx2 polygon in pixel coords
+        centroid   = detection['centroid']   
+        mask_poly  = detection['mask']       
 
         depth_val = detection_utils.mask_median_depth(
             mask_poly, self.latest_depth, min_mm=70, max_mm=2000)
-        print(f"[detector] depth_val={depth_val} mm  centroid={centroid}")
+        
         if depth_val is None:
-            print("[detector] depth_val is None — no valid depth pixels in mask")
             return None
 
         x_pix, y_pix = centroid
@@ -219,15 +185,21 @@ class GripperObjectDetector(Node):
         return detection_utils.get_pose_msg(self.latest_stamp, frame_id, goal_xyz)
 
 
-# ---------------------------------------------------------------------------
-
 if __name__ == '__main__':
     rclpy.init()
 
-    with open(CONFIG_PATH, 'r') as f:
-        obj_queries = yaml.safe_load(f)['queries']
+    # Fallback to load initial queries if text_input hasn't sent a message yet
+    try:
+        with open(CONFIG_PATH, 'r') as f:
+            obj_queries = yaml.safe_load(f)['queries']
+    except Exception:
+        obj_queries = ['object'] # Generic fallback
 
     node = GripperObjectDetector(obj_queries)
-    rclpy.spin(node)
-    node.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
