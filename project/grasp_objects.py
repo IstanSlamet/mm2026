@@ -138,7 +138,7 @@ class IKTargetFollowing(HelloNode):
         # Part 2 changes: if the object is close enough to grab, grab it
         distance = np.linalg.norm(goal_pos - gripper_pos)
         print(f"[goal_callback] distance to goal={distance:.4f}  (grasp threshold=0.25)")
-        if distance < 0.25:
+        if distance < 0.18:
             print("[goal_callback] Close enough — executing grasp")
             self.is_grasping = True
             self.execute_grasp(goal_pos)

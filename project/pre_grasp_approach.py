@@ -30,7 +30,7 @@ import tf2_ros
 import tf2_geometry_msgs
 import numpy as np
 
-APPROACH_DISTANCE = 0.9   # meters — desired standoff from object
+APPROACH_DISTANCE = 0.85   # meters — desired standoff from object
 DISTANCE_THRESHOLD = 0.05  # meters — tolerance to consider "arrived"
 ANGLE_THRESHOLD = 0.05     # radians — tolerance to consider heading aligned
 MAX_TRANSLATE_STEP = 0.10  # meters — max base translation per step
