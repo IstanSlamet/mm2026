@@ -119,6 +119,15 @@ class ReturnToTable(HelloNode):
             # Must be in position mode for individual joint commands to work
             self.switch_to_position_mode()
 
+              # move mast up before releaing
+            self.move_to_pose({'joint_lift': 1.0}, blocking=True)
+
+            self.get_logger().info('Extending arm.')
+            self.move_to_pose(
+                {'wrist_extension': RELEASE_POSE['wrist_extension']},
+                blocking=True,
+            )
+
             # 2. Move arm to release configuration — order matters:
             #    (a) lift mast to table height first
             #    (b) extend arm out over the table
@@ -126,12 +135,6 @@ class ReturnToTable(HelloNode):
             self.get_logger().info('Lifting mast.')
             self.move_to_pose(
                 {'joint_lift': RELEASE_POSE['joint_lift']},
-                blocking=True,
-            )
-
-            self.get_logger().info('Extending arm.')
-            self.move_to_pose(
-                {'wrist_extension': RELEASE_POSE['wrist_extension']},
                 blocking=True,
             )
 

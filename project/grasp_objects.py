@@ -20,7 +20,7 @@ class IKTargetFollowing(HelloNode):
     def __init__(self):
         HelloNode.__init__(self)
 
-        self.delta = 0.1 # cm
+        self.delta = 0.10 # m
         self.target_frame = 'base_link'
         self.gripper_frame = 'link_grasp_center'
         #------------------
@@ -168,6 +168,24 @@ class IKTargetFollowing(HelloNode):
         else:
             print("[goal_callback] IK succeeded")
         ik.print_q(q_soln)
+
+
+# # adding time gate 
+#         if q_soln is not None:
+#             current_time = self.get_clock().now()
+#             if self.last_command_time is None or \
+#                (current_time - self.last_command_time).nanoseconds > 0.4 * 1e9:
+#                 print("[goal_callback] Calling move_to_configuration...")
+#                 ik.move_to_configuration(self, q_soln)
+#                 self.last_command_time = current_time
+#                 print("[goal_callback] move_to_configuration returned")
+#             else:
+#                 print("[goal_callback] Skipping — too soon since last command")
+#         return
+
+
+
+
         if q_soln is not None:
             print("[goal_callback] Calling move_to_configuration...")
             ik.move_to_configuration(self, q_soln)
