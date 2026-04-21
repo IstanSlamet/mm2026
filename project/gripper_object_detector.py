@@ -43,6 +43,7 @@ from ultralytics import YOLO
 import message_filters
 
 import detection_utils
+from std_msgs.msg import Bool, String
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +106,15 @@ class GripperObjectDetector(Node):
         # --- detection timer ---
         self.create_timer(DETECTION_PERIOD, self._detect_callback)
 
+        #---target choice---
+        self.target_sub = self.create_subscription(
+            String, 
+            '/task/target_object', 
+            self._target_callback, 
+            10
+        )
+        self.current_target = None # Start with no target
+
     # ------------------------------------------------------------------
     # Camera callback
     # ------------------------------------------------------------------
@@ -125,6 +135,11 @@ class GripperObjectDetector(Node):
     # ------------------------------------------------------------------
 
     def _detect_callback(self):
+        if self.latest_color is None or self.current_target is None:
+            self.get_logger().info('Waiting for camera frames and target text...', 
+                               throttle_duration_sec=5)
+            return
+
         if self.latest_color is None:
             self.get_logger().info('Waiting for camera frames...', throttle_duration_sec=5)
             return
@@ -157,6 +172,17 @@ class GripperObjectDetector(Node):
         except Exception:
             return
         self.get_logger().info('---------- Published Goal Pose ----------')
+
+    # ------------------------------------------------------------------
+    # Target callback
+    # ------------------------------------------------------------------
+    def _target_callback(self, msg):
+        new_target = msg.data
+        self.get_logger().info(f'Updating YOLO-E classes to: "{new_target}"')
+        
+        # This dynamically updates the open-vocabulary classes for the YOLO-E model
+        self.model.set_classes([new_target])
+        self.current_target = new_target
 
     # ------------------------------------------------------------------
     # 3D projection
