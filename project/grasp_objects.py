@@ -319,10 +319,12 @@ class IKTargetFollowing(HelloNode):
         # D405 range is 70–500 mm. At lift=1.0 m the floor is ~1 m away — out of range.
         # Keep lift at ~0.4 m and extend arm so the camera is ~400 mm above the ball.
         self.move_to_pose({
-            'joint_lift':        0.3,
+            'joint_lift':        0.3}, blocking =True)
+        self.move_to_pose({
+            # 'joint_lift':        0.3,
             'wrist_extension':   0.1,   
             'joint_wrist_yaw':   0.0,
-            'joint_wrist_pitch': -np.pi/6,
+            'joint_wrist_pitch': -np.pi/4,
             'joint_wrist_roll': 0.0,
             'gripper_aperture':  0.5,
         }, blocking=True)

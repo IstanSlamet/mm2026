@@ -67,7 +67,7 @@ class GripperObjectDetector(Node):
     def __init__(self, obj_queries: list[str]):
         super().__init__('gripper_object_detector')
 
-        self.visualize = True
+        self.visualize = False
 
         # --- YOLO-E model ---
         self.model = YOLO(MODEL_PATH)
